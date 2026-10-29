@@ -61,6 +61,15 @@ class Prefs(context: Context) {
         get() = sp.getString("last_status", "") ?: ""
         set(v) = sp.edit().putString("last_status", v).apply()
 
+    /** Diagnóstico: última tela lida que continha preço (R$) e distância (km), mesmo depois de sumir. */
+    var lastRideDump: String
+        get() = sp.getString("last_ride_dump", "") ?: ""
+        set(v) = sp.edit().putString("last_ride_dump", v).apply()
+
+    var lastRideDumpAt: Long
+        get() = sp.getLong("last_ride_dump_at", 0L)
+        set(v) = sp.edit().putLong("last_ride_dump_at", v).apply()
+
     companion object {
         const val DEFAULT_PACKAGES = "com.app99.driver,com.ubercab.driver"
     }

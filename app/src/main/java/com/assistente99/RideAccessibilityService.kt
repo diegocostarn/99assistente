@@ -142,6 +142,7 @@ class RideAccessibilityService : AccessibilityService() {
 
         saveStatus(roots.size, nodes, texts.size)
         saveDump(pkg, nodes, texts)
+        saveRideDump(pkg, texts)
 
         val ride = RideParser.parse(texts)
         when {
@@ -174,6 +175,22 @@ class RideAccessibilityService : AccessibilityService() {
             dump.take(4000)
         prefs.lastDumpAt = now
         if (BuildConfigDebug.LOG_TEXTS) Log.d(TAG, "Textos da tela: $dump")
+    }
+
+    private var lastRideDump = ""
+    private val kmRegex = Regex("""\d\s*km""", RegexOption.IGNORE_CASE)
+
+    /**
+     * Guarda a última tela que tinha preço e km (ex.: o card do radar), separada do resto,
+     * para dar tempo de abrir o app e copiar depois que o card sumir.
+     */
+    private fun saveRideDump(pkg: String, texts: List<String>) {
+        val dump = texts.joinToString(" | ").replace(' ', ' ').replace(' ', ' ')
+        if (dump == lastRideDump) return
+        if (!dump.contains("R\$") || !kmRegex.containsMatchIn(dump)) return
+        lastRideDump = dump
+        prefs.lastRideDump = "Pacote: $pkg\nTextos lidos: ${texts.size}\n\n" + dump.take(4000)
+        prefs.lastRideDumpAt = System.currentTimeMillis()
     }
 
     /** Esconde o card só se a solicitação continuar ausente por ~1,2 s (evita piscar). */

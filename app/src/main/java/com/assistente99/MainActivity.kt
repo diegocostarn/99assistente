@@ -139,7 +139,14 @@ class MainActivity : AppCompatActivity() {
             val secs = (System.currentTimeMillis() - prefs.lastDumpAt) / 1000
             "Texto lido há $secs s:\n$dump"
         }
-        val message = "Apps que enviaram eventos de tela (pacote: quantidade):\n$seen\n\n" +
+        val rideDump = if (prefs.lastRideDump.isBlank()) {
+            "Nenhuma ainda (fique online e deixe uma solicitação ou o radar aparecer)."
+        } else {
+            val secs = (System.currentTimeMillis() - prefs.lastRideDumpAt) / 1000
+            "Lida há $secs s:\n${prefs.lastRideDump}"
+        }
+        val message = "ÚLTIMA TELA COM PREÇO E KM (radar/corrida):\n$rideDump\n\n" +
+            "Apps que enviaram eventos de tela (pacote: quantidade):\n$seen\n\n" +
             "Estado da última leitura:\n$status\n\n$texts"
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Última leitura da tela")
