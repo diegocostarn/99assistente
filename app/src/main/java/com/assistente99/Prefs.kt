@@ -51,6 +51,16 @@ class Prefs(context: Context) {
         get() = sp.getLong("last_dump_at", 0L)
         set(v) = sp.edit().putLong("last_dump_at", v).apply()
 
+    /** Diagnóstico: apps que enviaram eventos de tela ao serviço, com contagem. */
+    var seenPackages: String
+        get() = sp.getString("seen_packages", "") ?: ""
+        set(v) = sp.edit().putString("seen_packages", v).apply()
+
+    /** Diagnóstico: resultado da última tentativa de ler a janela dos apps monitorados. */
+    var lastStatus: String
+        get() = sp.getString("last_status", "") ?: ""
+        set(v) = sp.edit().putString("last_status", v).apply()
+
     companion object {
         const val DEFAULT_PACKAGES = "com.app99.driver,com.ubercab.driver"
     }

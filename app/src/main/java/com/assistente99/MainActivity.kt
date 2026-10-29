@@ -131,13 +131,16 @@ class MainActivity : AppCompatActivity() {
     /** Mostra o último texto lido da tela dos apps e permite compartilhar (ex.: WhatsApp). */
     private fun showDump() {
         val dump = prefs.lastDump
-        val message = if (dump.isBlank()) {
-            "Nada lido ainda.\n\nAtive o serviço de acessibilidade, abra o app da 99 ou da Uber " +
-                "(na tela do radar ou com uma solicitação aberta) e volte aqui."
+        val seen = prefs.seenPackages.ifBlank { "nenhum (o serviço não recebeu nenhum evento)" }
+        val status = prefs.lastStatus.ifBlank { "nenhuma tentativa de leitura dos apps monitorados" }
+        val texts = if (dump.isBlank()) {
+            "Nenhum texto lido ainda."
         } else {
             val secs = (System.currentTimeMillis() - prefs.lastDumpAt) / 1000
-            "Lido há $secs s.\n\n$dump"
+            "Texto lido há $secs s:\n$dump"
         }
+        val message = "Apps que enviaram eventos de tela (pacote: quantidade):\n$seen\n\n" +
+            "Estado da última leitura:\n$status\n\n$texts"
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Última leitura da tela")
             .setMessage(message)

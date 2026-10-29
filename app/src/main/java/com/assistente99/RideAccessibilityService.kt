@@ -13,6 +13,9 @@ import android.view.accessibility.AccessibilityNodeInfo
  *     (a oferta pode estar numa janela separada, e não só na janela ativa);
  *  2. tenta interpretar como uma solicitação de corrida (preço + km);
  *  3. mostra o card com o R$/km; se a solicitação sumir, esconde o card.
+ *
+ * Também grava informações de diagnóstico (quais apps enviam eventos, se as janelas são legíveis)
+ * para a tela principal mostrar.
  */
 class RideAccessibilityService : AccessibilityService() {
 
@@ -22,7 +25,11 @@ class RideAccessibilityService : AccessibilityService() {
 
     private var lastDump = ""
     private var lastSavedAt = 0L
+    private var lastStatusAt = 0L
+    private var lastSeenFlush = 0L
+    private var lastEventPkg = ""
     private var scanScheduled = false
+    private val seenPackages = LinkedHashMap<String, Int>()
 
     private val scanRunnable = Runnable {
         scanScheduled = false
@@ -39,12 +46,28 @@ class RideAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val pkg = event?.packageName?.toString() ?: return
+        countPackage(pkg)
         if (pkg !in prefs.packages) return
+        lastEventPkg = pkg
 
         // Agrupa rajadas de eventos: no máximo uma leitura a cada ~120 ms.
         if (!scanScheduled) {
             scanScheduled = true
             handler.postDelayed(scanRunnable, 120)
+        }
+    }
+
+    /** Conta os eventos por app (de todos os apps), para mostrar no diagnóstico. */
+    private fun countPackage(pkg: String) {
+        if (seenPackages.size > 40) seenPackages.clear()
+        seenPackages[pkg] = (seenPackages[pkg] ?: 0) + 1
+        val now = System.currentTimeMillis()
+        if (now - lastSeenFlush > 1000) {
+            lastSeenFlush = now
+            prefs.seenPackages = seenPackages.entries
+                .sortedByDescending { it.value }
+                .take(12)
+                .joinToString("\n") { "${it.key}: ${it.value}" }
         }
     }
 
@@ -67,10 +90,44 @@ class RideAccessibilityService : AccessibilityService() {
         return result
     }
 
+    private fun describeWindows(): String {
+        return try {
+            val ws = windows
+            val readable = ws.mapNotNull { it.root?.packageName?.toString() }
+                .joinToString(", ").ifEmpty { "nenhuma" }
+            "Janelas abertas: ${ws.size}. Janelas legíveis de: $readable"
+        } catch (e: Exception) {
+            "Erro ao listar janelas: ${e.javaClass.simpleName}"
+        }
+    }
+
+    private fun saveStatus(rootsCount: Int, nodes: Int, textCount: Int) {
+        val now = System.currentTimeMillis()
+        if (now - lastStatusAt < 700) return
+        lastStatusAt = now
+        val active = try {
+            rootInActiveWindow?.packageName?.toString()
+        } catch (_: Exception) {
+            null
+        } ?: "nenhuma"
+        prefs.lastStatus = "App monitorado que enviou evento: $lastEventPkg\n" +
+            "Janelas desse app que consegui abrir: $rootsCount\n" +
+            "Elementos na tela: $nodes\n" +
+            "Textos encontrados: $textCount\n" +
+            "${describeWindows()}\n" +
+            "Janela ativa: $active"
+    }
+
     private fun scan() {
         val roots = monitoredRoots()
         if (roots.isEmpty()) {
-            scheduleHide()
+            saveStatus(0, 0, 0)
+            if (prefs.debugMode) {
+                handler.removeCallbacks(hideRunnable)
+                overlay.showDebug("$lastEventPkg enviou eventos, mas não consegui abrir a janela do app.")
+            } else {
+                scheduleHide()
+            }
             return
         }
 
@@ -83,6 +140,7 @@ class RideAccessibilityService : AccessibilityService() {
             r.recycle()
         }
 
+        saveStatus(roots.size, nodes, texts.size)
         saveDump(pkg, nodes, texts)
 
         val ride = RideParser.parse(texts)
