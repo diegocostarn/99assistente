@@ -44,6 +44,7 @@ class CardSettingsActivity : AppCompatActivity() {
             setPadding(dp(16), dp(12), dp(16), dp(24))
         }
         setContentView(ScrollView(this).apply {
+            setBackgroundColor(0xFFF2F4F7.toInt())
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             )
@@ -128,9 +129,6 @@ class CardSettingsActivity : AppCompatActivity() {
         content.addView(check("Distância (km)", prefs.showKm) { prefs.showKm = it })
         content.addView(check("Valor por hora (R$/h)", prefs.showPerHour) { prefs.showPerHour = it })
         content.addView(check("Tempo total (min)", prefs.showTime) { prefs.showTime = it })
-        content.addView(check("Lucro estimado (precisa do custo do carro por km, na tela principal)", prefs.showProfit) {
-            prefs.showProfit = it
-        })
 
         // ---- Posição ----
         content.addView(label("Posição na tela"))

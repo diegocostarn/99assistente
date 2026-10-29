@@ -6,16 +6,9 @@ import android.content.Context
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("assistente99", Context.MODE_PRIVATE)
 
-    /** Pacotes dos apps monitorados, separados por vírgula (99 Motorista e Uber Motorista por padrão). */
-    var packagesText: String
-        get() = sp.getString("pkgs", DEFAULT_PACKAGES) ?: DEFAULT_PACKAGES
-        set(v) = sp.edit().putString("pkgs", v.trim()).apply()
-
+    /** Apps monitorados: 99 Motorista e Uber Motorista. */
     val packages: Set<String>
-        get() = packagesText.split(',', ';', ' ', '\n')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .toSet()
+        get() = DEFAULT_PACKAGES.split(',').toSet()
 
     /** Abaixo disso o card fica vermelho. */
     var minPerKm: Float
@@ -26,11 +19,6 @@ class Prefs(context: Context) {
     var goodPerKm: Float
         get() = sp.getFloat("good_per_km", 2.0f)
         set(v) = sp.edit().putFloat("good_per_km", v).apply()
-
-    /** Custo do veículo por km (combustível, desgaste). Usado para estimar o lucro. */
-    var costPerKm: Float
-        get() = sp.getFloat("cost_per_km", 0.0f)
-        set(v) = sp.edit().putFloat("cost_per_km", v).apply()
 
     /** Se true, o km até o passageiro entra no cálculo. */
     var includePickup: Boolean
@@ -129,16 +117,12 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("show_time", false)
         set(v) = sp.edit().putBoolean("show_time", v).apply()
 
-    var showProfit: Boolean
-        get() = sp.getBoolean("show_profit", true)
-        set(v) = sp.edit().putBoolean("show_profit", v).apply()
-
     /** Volta a aparência do card ao padrão (não mexe nas faixas de R$/km nem no custo do carro). */
     fun resetCard() {
         sp.edit()
             .remove("card_scale").remove("card_alpha").remove("card_font").remove("card_position")
             .remove("show_per_km").remove("show_per_hour").remove("show_price")
-            .remove("show_km").remove("show_time").remove("show_profit")
+            .remove("show_km").remove("show_time")
             .apply()
     }
 
@@ -149,6 +133,11 @@ class Prefs(context: Context) {
     var ocrWhenText: Boolean
         get() = sp.getBoolean("ocr_when_text", true)
         set(v) = sp.edit().putBoolean("ocr_when_text", v).apply()
+
+    /** Pede a captura de tela sozinho ao abrir o app, se ela não estiver ligada. */
+    var autoCapture: Boolean
+        get() = sp.getBoolean("auto_capture", true)
+        set(v) = sp.edit().putBoolean("auto_capture", v).apply()
 
     /** Notificação silenciosa com a última corrida e botões de mapa. */
     var notifyLastRide: Boolean

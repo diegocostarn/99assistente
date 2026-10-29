@@ -34,6 +34,7 @@ class RideLogActivity : AppCompatActivity() {
             setPadding(dp(12), dp(12), dp(12), dp(12))
         }
         setContentView(ScrollView(this).apply {
+            setBackgroundColor(0xFFF2F4F7.toInt())
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             )

@@ -1,33 +1,44 @@
 package com.assistente99
 
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
+import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 
-/** Tela de configuração: ativar o serviço e ajustar faixas de R$/km. */
+/** Tela principal: status, atalhos e ajustes. */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
-    private lateinit var status: TextView
+    private lateinit var accDot: View
+    private lateinit var accText: TextView
+    private lateinit var accButton: Button
+    private lateinit var ocrDot: View
+    private lateinit var ocrText: TextView
+    private lateinit var ocrButton: Button
     private lateinit var minField: EditText
     private lateinit var goodField: EditText
-    private lateinit var costField: EditText
-    private lateinit var pkgField: EditText
-    private lateinit var pickupCheck: CheckBox
-    private lateinit var debugCheck: CheckBox
-    private lateinit var ocrWideCheck: CheckBox
-    private lateinit var notifyCheck: CheckBox
-    private lateinit var ocrStatus: TextView
+    private lateinit var pickupSwitch: SwitchCompat
+    private lateinit var debugSwitch: SwitchCompat
+    private lateinit var ocrWideSwitch: SwitchCompat
+    private lateinit var autoSwitch: SwitchCompat
+    private lateinit var notifySwitch: SwitchCompat
+
+    // Evita pedir a captura em loop se o usuário recusar.
+    private var autoAsked = false
 
     private val captureLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
@@ -38,17 +49,18 @@ class MainActivity : AppCompatActivity() {
                 putExtra(ScreenCaptureService.EXTRA_DATA, result.data)
             }
             androidx.core.content.ContextCompat.startForegroundService(this, intent)
-            ocrStatus.text = "Captura de tela: ligada. Pode abrir a Uber."
+            // O serviço leva um instante para marcar "ligado".
+            ocrText.postDelayed({ refreshStatus() }, 600)
         } else {
-            ocrStatus.text = "Captura de tela: permissão negada."
+            Toast.makeText(this, "Captura de tela não autorizada", Toast.LENGTH_SHORT).show()
         }
+        refreshStatus()
     }
 
     private val notificationLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { launchCapturePrompt() }
 
-    // Só pede a permissão de notificações (Android 13+) para a notificação da última corrida.
     private val notifyPermissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { }
@@ -79,141 +91,247 @@ class MainActivity : AppCompatActivity() {
         captureLauncher.launch(mpm.createScreenCaptureIntent())
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        prefs = Prefs(this)
+    // ---------- Visual ----------
 
-        val pad = (16 * resources.displayMetrics.density).toInt()
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    private fun round(color: Int, radiusDp: Int, strokeColor: Int? = null) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(radiusDp).toFloat()
+        if (strokeColor != null) setStroke(dp(1), strokeColor)
+    }
+
+    private fun card(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        background = round(CARD, 18, LINE)
+        setPadding(dp(16), dp(14), dp(16), dp(14))
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(12) }
+    }
+
+    private fun text(t: String, size: Float, color: Int, bold: Boolean = false) = TextView(this).apply {
+        text = t
+        textSize = size
+        setTextColor(color)
+        if (bold) setTypeface(typeface, Typeface.BOLD)
+    }
+
+    private fun sectionTitle(t: String) = text(t, 12f, MUTED, true).apply {
+        letterSpacing = 0.08f
+        setPadding(dp(4), dp(22), 0, 0)
+    }
+
+    private fun filledButton(t: String, color: Int = ACCENT, onClick: () -> Unit) = Button(this).apply {
+        text = t
+        transformationMethod = null
+        textSize = 15f
+        setTextColor(Color.WHITE)
+        setTypeface(typeface, Typeface.BOLD)
+        background = round(color, 14)
+        stateListAnimator = null
+        minHeight = dp(48)
+        minimumHeight = dp(48)
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(10) }
+        setOnClickListener { onClick() }
+    }
+
+    private fun tile(emoji: String, title: String, sub: String, onClick: () -> Unit) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        background = round(CARD, 18, LINE)
+        setPadding(dp(16), dp(14), dp(16), dp(14))
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(10) }
+        isClickable = true
+        isFocusable = true
+        addView(text(emoji, 26f, INK).apply { setPadding(0, 0, dp(14), 0) })
+        addView(LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            addView(text(title, 16f, INK, true))
+            addView(text(sub, 13f, MUTED))
+        })
+        addView(text("›", 26f, MUTED))
+        setOnClickListener { onClick() }
+    }
+
+    private fun statusRow(title: String): Triple<View, TextView, LinearLayout> {
+        val box = card()
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val dot = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(12), dp(12)).apply { rightMargin = dp(12) }
+            background = round(BAD, 6)
+        }
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        col.addView(text(title, 16f, INK, true))
+        val state = text("", 13f, MUTED)
+        col.addView(state)
+        row.addView(dot)
+        row.addView(col)
+        box.addView(row)
+        return Triple(dot, state, box)
+    }
+
+    private fun fieldLabel(t: String) = text(t, 13f, MUTED).apply { setPadding(0, dp(12), 0, dp(4)) }
+
+    private fun numberField(value: Float) = EditText(this).apply {
+        inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+        setText(if (value == 0f) "" else value.toString())
+        setTextColor(INK)
+        textSize = 16f
+        background = round(0xFFF3F4F6.toInt(), 12)
+        setPadding(dp(14), dp(10), dp(14), dp(10))
+    }
+
+    private fun switchRow(t: String, sub: String, checked: Boolean): SwitchCompat = SwitchCompat(this).apply {
+        text = t
+        isChecked = checked
+        textSize = 15f
+        setTextColor(INK)
+        setPadding(0, dp(10), 0, dp(10))
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        // O subtítulo vai junto no texto, em cinza e menor.
+        val s = android.text.SpannableString("$t\n$sub")
+        s.setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, t.length, 0)
+        s.setSpan(android.text.style.RelativeSizeSpan(0.82f), t.length + 1, s.length, 0)
+        s.setSpan(android.text.style.ForegroundColorSpan(MUTED), t.length + 1, s.length, 0)
+        text = s
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        supportActionBar?.hide()
+        prefs = Prefs(this)
+        window.statusBarColor = HEADER
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(BG)
         }
 
-        fun label(text: String) = TextView(this).apply {
-            this.text = text
-            textSize = 14f
-            setPadding(0, pad, 0, 0)
+        // Cabeçalho
+        root.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR, intArrayOf(HEADER, 0xFF1F3A5F.toInt())
+            ).apply { cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, dp(28).toFloat(), dp(28).toFloat(), dp(28).toFloat(), dp(28).toFloat()) }
+            setPadding(dp(22), dp(28), dp(22), dp(28))
+            addView(text("Assistente 99", 28f, Color.WHITE, true))
+            addView(text("Quanto vale cada km, na hora da corrida.\nFunciona na 99 e na Uber.", 14f, 0xFFB7C4D6.toInt()).apply {
+                setPadding(0, dp(6), 0, 0)
+            })
+        })
+
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(4), dp(16), dp(28))
         }
 
-        fun numberField(value: Float) = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
-            setText(if (value == 0f) "" else value.toString())
+        // Status
+        col.addView(sectionTitle("STATUS"))
+        val (d1, t1, c1) = statusRow("Leitura da tela (acessibilidade)")
+        accDot = d1; accText = t1
+        accButton = filledButton("Ativar nas configurações") {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
+        c1.addView(accButton)
+        col.addView(c1)
 
-        col.addView(TextView(this).apply {
-            text = "Assistente 99"
-            textSize = 24f
+        val (d2, t2, c2) = statusRow("Captura de tela (Uber)")
+        ocrDot = d2; ocrText = t2
+        ocrButton = filledButton("Ligar captura de tela") { startOcr() }
+        c2.addView(ocrButton)
+        col.addView(c2)
+
+        // Atalhos
+        col.addView(sectionTitle("ATALHOS"))
+        col.addView(tile("🕘", "Últimas 10 viagens", "Uber e 99, com endereços e mapa") {
+            startActivity(Intent(this, RideLogActivity::class.java))
         })
-
-        status = TextView(this).apply { textSize = 16f; setPadding(0, pad, 0, pad) }
-        col.addView(status)
-
-        col.addView(Button(this).apply {
-            text = "Últimas 10 viagens (Uber e 99)"
-            setOnClickListener { startActivity(Intent(this@MainActivity, RideLogActivity::class.java)) }
+        col.addView(tile("🎨", "Personalizar o card", "Tamanho, fonte, posição e campos") {
+            startActivity(Intent(this, CardSettingsActivity::class.java))
         })
+        col.addView(tile("🔎", "Ver o que o app leu", "Diagnóstico para enviar se algo falhar") { showDump() })
 
-        col.addView(Button(this).apply {
-            text = "Personalizar o card (tamanho, fonte, posição)"
-            setOnClickListener { startActivity(Intent(this@MainActivity, CardSettingsActivity::class.java)) }
-        })
-
-        col.addView(Button(this).apply {
-            text = "1) Ativar o serviço de acessibilidade"
-            setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-        })
-        col.addView(TextView(this).apply {
-            text = "Na lista, abra \"Assistente 99\" e ligue. O Android vai pedir confirmação: " +
-                "o serviço só lê a tela dos apps de motorista (99 e Uber) e nada sai do aparelho."
-            textSize = 13f
-        })
-
-        col.addView(label("R$/km mínimo aceitável (abaixo disso o card fica vermelho)"))
-        minField = numberField(prefs.minPerKm).also { col.addView(it) }
-
-        col.addView(label("R$/km considerado bom (a partir daí o card fica verde)"))
-        goodField = numberField(prefs.goodPerKm).also { col.addView(it) }
-
-        col.addView(label("Custo do carro por km (combustível + desgaste). Opcional: se preencher, o card mostra o lucro"))
-        costField = numberField(prefs.costPerKm).also { col.addView(it) }
-
-        pickupCheck = CheckBox(this).apply {
-            text = "Incluir o km até o passageiro no cálculo"
-            isChecked = prefs.includePickup
-        }
-        col.addView(pickupCheck)
-
-        col.addView(label("Pacotes dos apps monitorados (99 e Uber), separados por vírgula"))
-        pkgField = EditText(this).apply { setText(prefs.packagesText) }
-        col.addView(pkgField)
-
-        debugCheck = CheckBox(this).apply {
-            text = "Modo diagnóstico (mostra um card mesmo sem reconhecer a corrida)"
-            isChecked = prefs.debugMode
-        }
-        col.addView(debugCheck)
-
-        ocrWideCheck = CheckBox(this).apply {
-            text = "Ler por imagem também quando a tela tiver texto (ajuda na 99; gasta mais bateria)"
-            isChecked = prefs.ocrWhenText
-        }
-        col.addView(ocrWideCheck)
-
-        notifyCheck = CheckBox(this).apply {
-            text = "Mostrar a última corrida na barra de notificações (silenciosa, com botões de mapa)"
-            isChecked = prefs.notifyLastRide
-            setOnCheckedChangeListener { _, checked -> if (checked) askNotificationPermissionIfNeeded() }
-        }
-        col.addView(notifyCheck)
-        if (prefs.notifyLastRide) askNotificationPermissionIfNeeded()
-
-        col.addView(TextView(this).apply {
-            text = "Leitura por captura de tela (OCR): necessária para o card de solicitação da Uber, " +
-                "que o app não entrega como texto. Tudo é processado no aparelho, nada é salvo nem enviado."
-            textSize = 13f
-            setPadding(0, pad, 0, 0)
-        })
-        ocrStatus = TextView(this).apply { textSize = 14f }
-        col.addView(ocrStatus)
-        col.addView(Button(this).apply {
-            text = "2) Ligar leitura por captura de tela"
-            setOnClickListener { startOcr() }
-        })
-        col.addView(Button(this).apply {
-            text = "Desligar leitura por captura de tela"
-            setOnClickListener {
-                stopService(Intent(this@MainActivity, ScreenCaptureService::class.java))
-                ocrStatus.text = "Captura de tela: desligada."
+        // Ajustes
+        col.addView(sectionTitle("AJUSTES"))
+        val set = card()
+        set.addView(fieldLabel("R$/km mínimo aceitável (abaixo disso o card fica vermelho)"))
+        minField = numberField(prefs.minPerKm).also { set.addView(it) }
+        set.addView(fieldLabel("R$/km considerado bom (a partir daí o card fica verde)"))
+        goodField = numberField(prefs.goodPerKm).also { set.addView(it) }
+        set.addView(View(this).apply {
+            setBackgroundColor(LINE)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)).apply {
+                topMargin = dp(16); bottomMargin = dp(6)
             }
         })
+        pickupSwitch = switchRow("Contar o km até o passageiro", "Entra no cálculo do R$/km", prefs.includePickup)
+        set.addView(pickupSwitch)
+        autoSwitch = switchRow("Ligar a captura ao abrir o app", "Pede a autorização sozinho se estiver desligada", prefs.autoCapture)
+        set.addView(autoSwitch)
+        ocrWideSwitch = switchRow("Ler por imagem também com texto na tela", "Ajuda na 99; gasta mais bateria", prefs.ocrWhenText)
+        set.addView(ocrWideSwitch)
+        notifySwitch = switchRow("Última corrida na barra de notificações", "Silenciosa, com botões de mapa", prefs.notifyLastRide)
+        notifySwitch.setOnCheckedChangeListener { _, on -> if (on) askNotificationPermissionIfNeeded() }
+        set.addView(notifySwitch)
+        debugSwitch = switchRow("Modo diagnóstico", "Mostra um card mesmo sem reconhecer a corrida", prefs.debugMode)
+        set.addView(debugSwitch)
+        col.addView(set)
 
-        col.addView(Button(this).apply {
-            text = "Ver o que o app leu da tela"
-            setOnClickListener { showDump() }
-        })
+        col.addView(filledButton("Salvar ajustes", HEADER) { save() })
 
-        col.addView(Button(this).apply {
-            text = "Salvar"
-            setOnClickListener { save() }
-        })
+        col.addView(text(
+            "Tudo é processado no aparelho: nada é salvo nem enviado para a internet.", 12f, MUTED
+        ).apply { gravity = Gravity.CENTER; setPadding(dp(8), dp(18), dp(8), 0) })
 
-        setContentView(ScrollView(this).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            )
+        root.addView(ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
             addView(col)
         })
+        setContentView(root)
+
+        if (prefs.notifyLastRide) askNotificationPermissionIfNeeded()
     }
 
     override fun onResume() {
         super.onResume()
-        if (::ocrStatus.isInitialized) {
-            ocrStatus.text = if (OcrState.running) "Captura de tela: ligada." else "Captura de tela: desligada."
+        refreshStatus()
+        // Captura "sempre ligada": ao abrir o app, pede a autorização se ela estiver desligada.
+        // (O Android exige a confirmação do usuário a cada vez; não dá para ligá-la escondido.)
+        if (prefs.autoCapture && !OcrState.running && !autoAsked && isServiceEnabled()) {
+            autoAsked = true
+            startOcr()
         }
-        status.text = if (isServiceEnabled()) {
-            "Serviço ATIVO. Abra o app da 99 ou da Uber e fique online."
-        } else {
-            "Serviço DESLIGADO."
+    }
+
+    private fun refreshStatus() {
+        val acc = isServiceEnabled()
+        accDot.background = round(if (acc) GOOD else BAD, 6)
+        accText.text = if (acc) "Ativo. Abra a 99 ou a Uber e fique online." else "Desligado. Toque abaixo e ligue \"Assistente 99\"."
+        accButton.visibility = if (acc) View.GONE else View.VISIBLE
+
+        val ocr = OcrState.running
+        ocrDot.background = round(if (ocr) GOOD else BAD, 6)
+        ocrText.text = if (ocr) "Ligada. Pode abrir a Uber." else "Desligada. Necessária para ler o card da Uber."
+        ocrButton.text = if (ocr) "Desligar captura de tela" else "Ligar captura de tela"
+        ocrButton.background = round(if (ocr) 0xFF6B7280.toInt() else ACCENT, 14)
+        ocrButton.setOnClickListener {
+            if (OcrState.running) {
+                stopService(Intent(this, ScreenCaptureService::class.java))
+                // Desligar na mão vale até fechar o app.
+                autoAsked = true
+                ocrText.postDelayed({ refreshStatus() }, 400)
+            } else startOcr()
         }
     }
 
@@ -221,14 +339,25 @@ class MainActivity : AppCompatActivity() {
         fun parse(f: EditText) = f.text.toString().replace(',', '.').toFloatOrNull() ?: 0f
         prefs.minPerKm = parse(minField)
         prefs.goodPerKm = parse(goodField)
-        prefs.costPerKm = parse(costField)
-        prefs.includePickup = pickupCheck.isChecked
-        prefs.debugMode = debugCheck.isChecked
-        prefs.ocrWhenText = ocrWideCheck.isChecked
-        prefs.notifyLastRide = notifyCheck.isChecked
-        if (!notifyCheck.isChecked) RideNotifier.cancel(this)
-        prefs.packagesText = pkgField.text.toString().ifBlank { Prefs.DEFAULT_PACKAGES }
+        prefs.includePickup = pickupSwitch.isChecked
+        prefs.debugMode = debugSwitch.isChecked
+        prefs.ocrWhenText = ocrWideSwitch.isChecked
+        prefs.autoCapture = autoSwitch.isChecked
+        prefs.notifyLastRide = notifySwitch.isChecked
+        if (!notifySwitch.isChecked) RideNotifier.cancel(this)
         Toast.makeText(this, "Salvo", Toast.LENGTH_SHORT).show()
+    }
+
+    companion object {
+        private val BG = 0xFFF2F4F7.toInt()
+        private val CARD = 0xFFFFFFFF.toInt()
+        private val LINE = 0xFFE5E7EB.toInt()
+        private val INK = 0xFF111827.toInt()
+        private val MUTED = 0xFF6B7280.toInt()
+        private val HEADER = 0xFF0F172A.toInt()
+        private val ACCENT = 0xFF16A34A.toInt()
+        private val GOOD = 0xFF22C55E.toInt()
+        private val BAD = 0xFFEF4444.toInt()
     }
 
     /** Mostra o último texto lido da tela dos apps e permite compartilhar (ex.: WhatsApp). */

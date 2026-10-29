@@ -1,6 +1,6 @@
 # Assistente 99
 
-App Android que lê, em tempo real, a solicitação de corrida na tela do app de motorista da **99** ou da **Uber** e mostra sobre ela, na hora, o **R$ por km** (e opcionalmente R$/h e lucro estimado).
+App Android que lê, em tempo real, a solicitação de corrida na tela do app de motorista da **99** ou da **Uber** e mostra sobre ela, na hora, o **R$ por km** (e opcionalmente R$/h).
 
 ## Como funciona
 
@@ -21,7 +21,7 @@ App Android que lê, em tempo real, a solicitação de corrida na tela do app de
 ## Como usar
 
 1. Abra o Assistente 99 e toque em **Ativar o serviço de acessibilidade**; ligue "Assistente 99".
-2. Ajuste as faixas de R$/km, o custo do carro por km (opcional) e se o km até o passageiro entra na conta. Toque em Salvar.
+2. Ajuste as faixas de R$/km e se o km até o passageiro entra na conta. Toque em Salvar.
 3. Abra o app da 99 ou da Uber, fique online e aguarde uma solicitação. O mesmo card funciona nos dois.
 
 ## Uber: leitura por captura de tela (OCR)
@@ -29,7 +29,7 @@ App Android que lê, em tempo real, a solicitação de corrida na tela do app de
 O card de solicitação da Uber não expõe o texto ao serviço de acessibilidade (o modo diagnóstico mostra "tela sem nenhum texto legível"). Para esse caso o app lê a imagem da tela:
 
 1. Na tela principal, toque em **2) Ligar leitura por captura de tela** e aceite o aviso do Android ("Começar a gravar/transmitir").
-2. Uma notificação "Assistente 99" fica ativa enquanto a captura está ligada. Se tirar o app da memória, ligue de novo.
+2. Com **Ligar a captura ao abrir o app** (padrão), o app pede essa autorização sozinho toda vez que você o abre e a captura está desligada. O Android exige a confirmação a cada vez (celular reiniciado ou app fechado), então é só tocar em "Começar agora". Uma notificação "Assistente 99" fica ativa enquanto a captura está ligada.
 3. Só quando um app monitorado mostra uma tela sem texto o app tira um print (na memória, nada é salvo nem enviado), lê com OCR no aparelho e mostra o R$/km. Nas outras telas não gasta bateria extra.
 
 O texto lido por OCR aparece em **Ver o que o app leu da tela**, na seção "LEITURA POR OCR".
@@ -40,7 +40,7 @@ Na tela principal, **Personalizar o card** permite ajustar, com prévia ao vivo:
 
 - **Tamanho** (60% a 200%) e **opacidade** (30% a 100%);
 - **Fonte** (padrão, condensada, serifada, monoespaçada, casual);
-- **O que mostrar**: R$/km, valor da corrida, distância, R$/h, tempo total e lucro estimado;
+- **O que mostrar**: R$/km, valor da corrida, distância, R$/h e tempo total;
 - **Posição**: 9 lugares (topo, meio ou base × esquerda, centro ou direita);
 - **Testar sobre outros apps**: mostra o card por 6 s para você ver o resultado de verdade.
 
@@ -77,7 +77,7 @@ Se o card não aparecer ou mostrar valores errados:
 1. Com computador: conecte o celular e rode `adb logcat -s Assistente99`.
 2. Receba uma solicitação e copie a linha `Textos da tela: ...`.
 3. Ajuste os regex/ordem em `RideParser.kt`. Os testes em `RideParserTest.kt` mostram o formato esperado; adicione um com o texto real.
-4. Se o pacote de algum app for diferente (`com.app99.driver`, `com.ubercab.driver`), mude na tela de configuração. Os tempos aceitam "min" (99) e "minutos" (Uber).
+4. Se o pacote de algum app for diferente de `com.app99.driver` / `com.ubercab.driver`, mude `DEFAULT_PACKAGES` em `Prefs.kt`. Os tempos aceitam "min" (99) e "minutos" (Uber).
 
 Antes de distribuir, coloque `LOG_TEXTS = false` em `RideAccessibilityService.kt`.
 

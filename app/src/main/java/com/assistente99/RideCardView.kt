@@ -31,8 +31,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
 
         val includePickup = prefs.includePickup
         val perKm = ride.perKm(includePickup)
-        val net = perKm?.let { it - prefs.costPerKm }
-        val shown = if (prefs.costPerKm > 0f) net else perKm
+        val shown = perKm
         val kmTotal = ride.totalKm(includePickup)
 
         applyFrame(
@@ -81,9 +80,6 @@ class RideCardView(context: Context) : LinearLayout(context) {
 
         val money = mutableListOf<String>()
         if (prefs.showPerHour) ride.perHour(includePickup)?.let { money += "R$ ${fmt(it)} / hora" }
-        if (prefs.showProfit && prefs.costPerKm > 0f && net != null) {
-            money += "lucro R$ ${fmt(net * kmTotal)}"
-        }
         if (money.isNotEmpty()) {
             addLine(money.joinToString(" • "), 14f, false, prefs)
             rows++
@@ -105,7 +101,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
         val includePickup = prefs.includePickup
         for (ride in rides.take(MAX_ROWS)) {
             val perKm = ride.perKm(includePickup)
-            val shown = if (prefs.costPerKm > 0f) perKm?.let { it - prefs.costPerKm } else perKm
+            val shown = perKm
             val color = when {
                 shown == null -> 0xFFDDDDDD.toInt()
                 shown >= prefs.goodPerKm -> 0xFF4CD07D.toInt()
