@@ -178,6 +178,7 @@ class RideAccessibilityService : AccessibilityService() {
     }
 
     private var lastRideDump = ""
+    private val rideHistory = ArrayList<String>()
     private val kmRegex = Regex("""\d\s*km""", RegexOption.IGNORE_CASE)
 
     /**
@@ -187,9 +188,20 @@ class RideAccessibilityService : AccessibilityService() {
     private fun saveRideDump(pkg: String, texts: List<String>) {
         val dump = texts.joinToString(" | ").replace(' ', ' ').replace(' ', ' ')
         if (dump == lastRideDump) return
-        if (!dump.contains("R\$") || !kmRegex.containsMatchIn(dump)) return
+        // Precisa de um valor em R$ que não comece com "+" (ignora bônus e preço dinâmico) e de km.
+        val hasPrice = texts.any {
+            val t = it.replace(' ', ' ').trimStart()
+            !t.startsWith("+") && t.contains("R\$")
+        }
+        if (!hasPrice || !kmRegex.containsMatchIn(dump)) return
         lastRideDump = dump
-        prefs.lastRideDump = "Pacote: $pkg\nTextos lidos: ${texts.size}\n\n" + dump.take(4000)
+
+        // Guarda as 5 capturas mais recentes (mais nova primeiro), para nada se perder.
+        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+            .format(java.util.Date())
+        rideHistory.add(0, "[$time] ${texts.size} textos ($pkg)\n${dump.take(2000)}")
+        while (rideHistory.size > 5) rideHistory.removeAt(rideHistory.size - 1)
+        prefs.lastRideDump = rideHistory.joinToString("\n\n---\n\n")
         prefs.lastRideDumpAt = System.currentTimeMillis()
     }
 

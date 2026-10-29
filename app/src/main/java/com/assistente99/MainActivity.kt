@@ -143,7 +143,7 @@ class MainActivity : AppCompatActivity() {
             "Nenhuma ainda (fique online e deixe uma solicitação ou o radar aparecer)."
         } else {
             val secs = (System.currentTimeMillis() - prefs.lastRideDumpAt) / 1000
-            "Lida há $secs s:\n${prefs.lastRideDump}"
+            "Capturas (mais recente primeiro; a última foi há $secs s):\n\n${prefs.lastRideDump}"
         }
         val message = "ÚLTIMA TELA COM PREÇO E KM (radar/corrida):\n$rideDump\n\n" +
             "Apps que enviaram eventos de tela (pacote: quantidade):\n$seen\n\n" +
