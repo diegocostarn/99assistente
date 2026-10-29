@@ -209,7 +209,9 @@ class MainActivity : AppCompatActivity() {
         val ocrRides = prefs.ocrRideHistory.ifBlank {
             "Nenhuma leitura de OCR com km ainda (o card da corrida precisa estar na tela com a captura ligada)."
         }
-        val message = "OCR - LEITURAS COM KM (mais recente primeiro):\n$ocrRides\n\n" +
+        val rejected = prefs.ocrRejected.ifBlank { "Nenhuma." }
+        val message = "OCR - LEITURAS DESCARTADAS (não bateram com a estimativa da Uber):\n$rejected\n\n" +
+            "OCR - LEITURAS COM KM (mais recente primeiro):\n$ocrRides\n\n" +
             "OCR - ÚLTIMA LEITURA (qualquer tela):\n$ocr\n\n" +
             "ÚLTIMA TELA COM PREÇO E KM (radar/corrida):\n$rideDump\n\n" +
             "Apps que enviaram eventos de tela (pacote: quantidade):\n$seen\n\n" +

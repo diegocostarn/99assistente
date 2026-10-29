@@ -11,8 +11,21 @@ android {
         applicationId = "com.assistente99"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
+        // No GitHub Actions o número da execução sobe a cada build, então cada APK novo é uma atualização.
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "1.0"
+    }
+
+    // Assinatura fixa: todo APK gerado tem a mesma assinatura e instala POR CIMA do anterior,
+    // sem desinstalar (mantém a acessibilidade ligada e a liberação de "configurações restritas").
+    // É uma chave só para uso pessoal; não use este projeto para publicar na Play Store.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {

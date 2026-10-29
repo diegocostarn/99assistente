@@ -50,6 +50,7 @@ class ScreenCaptureService : Service() {
     private var busy = false
     private var lastOcrDump = ""
     private val ocrRideHistory = ArrayList<String>()
+    private val ocrRejected = ArrayList<String>()
     private val kmRegex = Regex("""\d\s*km""", RegexOption.IGNORE_CASE)
     private var stopped = false
 
@@ -211,7 +212,21 @@ class ScreenCaptureService : Service() {
             prefs.ocrRideHistory = ocrRideHistory.joinToString("\n\n---\n\n")
         }
 
-        val ride = RideParser.parseOcr(lines)
+        val raw = RideParser.parseOcrRaw(lines)
+        val ride = raw?.takeIf { RideParser.isPlausible(it) }
+        if (raw != null && ride == null) {
+            // Leitura que não bate com a estimativa da Uber: não mostra, e guarda para análise.
+            val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                .format(java.util.Date())
+            val calc = raw.perKm(true)?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "?"
+            ocrRejected.add(
+                0,
+                "[$time] DESCARTADA: calculei R$ $calc/km, a Uber estima R$ ${raw.estPerKm}/km " +
+                    "(preço ${raw.price}, até o passageiro ${raw.pickupKm} km, viagem ${raw.tripKm} km)\n${dump.take(1200)}"
+            )
+            while (ocrRejected.size > 5) ocrRejected.removeAt(ocrRejected.size - 1)
+            prefs.ocrRejected = ocrRejected.joinToString("\n\n---\n\n")
+        }
         if (ride != null) {
             OcrState.lastOcrRideAt = now
             OcrState.shownByOcr = true

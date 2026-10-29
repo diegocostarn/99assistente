@@ -80,6 +80,11 @@ class Prefs(context: Context) {
         get() = sp.getString("ocr_ride_history", "") ?: ""
         set(v) = sp.edit().putString("ocr_ride_history", v).apply()
 
+    /** Diagnóstico: leituras de OCR descartadas por não baterem com a estimativa da Uber. */
+    var ocrRejected: String
+        get() = sp.getString("ocr_rejected", "") ?: ""
+        set(v) = sp.edit().putString("ocr_rejected", v).apply()
+
     companion object {
         const val DEFAULT_PACKAGES = "com.app99.driver,com.ubercab.driver"
     }

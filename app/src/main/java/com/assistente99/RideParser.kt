@@ -8,7 +8,9 @@ data class RideInfo(
     val pickupKm: Double?,
     val tripKm: Double?,
     val pickupMin: Int?,
-    val tripMin: Int?
+    val tripMin: Int?,
+    /** "Est. de R$ X/km" que a própria Uber mostra no card (usado só para conferir a leitura do OCR). */
+    val estPerKm: Double? = null
 ) {
     /** Km total considerado no cálculo. */
     fun totalKm(includePickup: Boolean): Double {
@@ -64,9 +66,43 @@ object RideParser {
     // O OCR costuma ler "R$" como "RS" ou "R5".
     private val ocrCurrencyRegex = Regex("""\bR[S5]\s?(?=\d)""")
 
-    /** Como [parse], mas corrige erros típicos de OCR antes. */
+    // Números lidos pelo OCR com letras parecidas no lugar de dígitos: "8.l km" (8.1), "l,00" (1,00).
+    private val ocrNumberTokenRegex = Regex("""(?<!\p{L})[0-9lIO]+(?:[.,][0-9lIO]+)?(?!\p{L})""")
+
+    /** Troca l/I por 1 e O por 0, mas só em "números" que já têm pelo menos um dígito de verdade. */
+    private fun fixOcrDigits(line: String): String = ocrNumberTokenRegex.replace(line) { m ->
+        val t = m.value
+        if (t.any { it.isDigit() } && t.any { it == 'l' || it == 'I' || it == 'O' }) {
+            t.map { c -> when (c) { 'l', 'I' -> '1'; 'O' -> '0'; else -> c } }.joinToString("")
+        } else {
+            t
+        }
+    }
+
+    // "Est. de R$1,15/km": estimativa da Uber, já com o km até o passageiro e o bônus.
+    private val estPerKmRegex = Regex("""R\$\s*(\d+(?:[.,]\d{1,2})?)\s*/\s*km""", RegexOption.IGNORE_CASE)
+
+    /** Diferença máxima aceita entre o R$/km calculado e a estimativa da Uber. */
+    private const val EST_TOLERANCE = 0.15
+
+    /** Lê as linhas do OCR e corrige os erros típicos, SEM conferir com a estimativa da Uber. */
+    fun parseOcrRaw(lines: List<String>): RideInfo? =
+        parse(lines.map { line -> fixOcrDigits(ocrCurrencyRegex.replace(line) { "R\$ " }) })
+
+    /**
+     * A leitura é plausível? Se o card trouxe a estimativa da Uber e o nosso R$/km diverge dela
+     * em mais de 15%, algum número foi mal lido pelo OCR (preço ou km).
+     */
+    fun isPlausible(ride: RideInfo): Boolean {
+        val est = ride.estPerKm ?: return true
+        if (est <= 0.0) return true
+        val computed = ride.perKm(true) ?: return false
+        return kotlin.math.abs(computed - est) / est <= EST_TOLERANCE
+    }
+
+    /** Como [parseOcrRaw], mas devolve null se a leitura não bater com a estimativa da Uber. */
     fun parseOcr(lines: List<String>): RideInfo? =
-        parse(lines.map { line -> ocrCurrencyRegex.replace(line) { "R\$ " } })
+        parseOcrRaw(lines)?.takeIf { isPlausible(it) }
 
     fun parse(rawTexts: List<String>): RideInfo? {
         // Formatação de moeda e unidades costuma usar espaço não separável (U+00A0),
@@ -75,6 +111,7 @@ object RideParser {
 
         val price = findPrice(texts) ?: return null
         val joined = texts.joinToString(" | ")
+        val est = estPerKmRegex.find(joined)?.groupValues?.get(1)?.let { parseBrNumber(it) }
 
         val pairs = pairRegex.findAll(joined).mapNotNull { m ->
             val min = m.groupValues[1].toIntOrNull() ?: return@mapNotNull null
@@ -84,9 +121,9 @@ object RideParser {
 
         if (pairs.isNotEmpty()) {
             return if (pairs.size >= 2) {
-                RideInfo(price, pairs[0].second, pairs[1].second, pairs[0].first, pairs[1].first)
+                RideInfo(price, pairs[0].second, pairs[1].second, pairs[0].first, pairs[1].first, est)
             } else {
-                RideInfo(price, null, pairs[0].second, null, pairs[0].first)
+                RideInfo(price, null, pairs[0].second, null, pairs[0].first, est)
             }
         }
 
@@ -117,7 +154,7 @@ object RideParser {
             tripMin = minutes.firstOrNull()
         }
 
-        return RideInfo(price, pickupKm, tripKm, pickupMin, tripMin)
+        return RideInfo(price, pickupKm, tripKm, pickupMin, tripMin, est)
     }
 
     /**
