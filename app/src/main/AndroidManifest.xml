@@ -24,6 +24,10 @@
             android:name=".RideLogActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".CardSettingsActivity"
+            android:exported="false" />
+
         <service
             android:name=".RideAccessibilityService"
             android:exported="false"

@@ -55,6 +55,18 @@ class RideAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** Mostra o card com uma corrida de exemplo por 6 s (botão "Testar" da tela Personalizar o card). */
+    fun previewOverlay() {
+        handler.post {
+            handler.removeCallbacks(hideRunnable)
+            overlay.show(SAMPLE_RIDE, prefs)
+            handler.postDelayed(hideRunnable, 6000)
+        }
+    }
+
+    /** Posição do card na tela, para o OCR tapá-lo na imagem (assim ele não lê o próprio card). */
+    fun overlayBounds(): android.graphics.Rect? = if (::overlay.isInitialized) overlay.bounds() else null
+
     /** Chamado pelo serviço de captura (OCR) quando a corrida saiu da tela. */
     fun hideFromOcr() {
         handler.post { overlay.hide() }
@@ -276,6 +288,8 @@ class RideAccessibilityService : AccessibilityService() {
 
         @Volatile
         var instance: RideAccessibilityService? = null
+
+        private val SAMPLE_RIDE = RideInfo(12.70, 2.9, 8.1, 8, 12, 1.15)
     }
 }
 

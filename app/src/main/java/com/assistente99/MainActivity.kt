@@ -98,6 +98,11 @@ class MainActivity : AppCompatActivity() {
         })
 
         col.addView(Button(this).apply {
+            text = "Personalizar o card (tamanho, fonte, posição)"
+            setOnClickListener { startActivity(Intent(this@MainActivity, CardSettingsActivity::class.java)) }
+        })
+
+        col.addView(Button(this).apply {
             text = "1) Ativar o serviço de acessibilidade"
             setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         })

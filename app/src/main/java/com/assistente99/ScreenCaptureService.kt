@@ -48,6 +48,9 @@ class ScreenCaptureService : Service() {
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     private var busy = false
+
+    /** Proporção entre a imagem do OCR e a tela real (a imagem é reduzida para ~720 px de largura). */
+    private var captureScale = 1f
     private var lastOcrDump = ""
     private val ocrRideHistory = ArrayList<String>()
     private val ocrRejected = ArrayList<String>()
@@ -132,6 +135,7 @@ class ScreenCaptureService : Service() {
         val scale = minOf(1f, MAX_WIDTH / bounds.width().toFloat())
         val w = (bounds.width() * scale).toInt()
         val h = (bounds.height() * scale).toInt()
+        captureScale = scale
 
         val r = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
         reader = r
@@ -172,6 +176,16 @@ class ScreenCaptureService : Service() {
         val full = Bitmap.createBitmap(width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888)
         full.copyPixelsFromBuffer(plane.buffer)
         image.close()
+
+        // Tapa o card do Assistente 99 (onde quer que o usuário o tenha colocado) para o OCR não lê-lo.
+        svc?.overlayBounds()?.let { b ->
+            val m = 6f
+            val paint = android.graphics.Paint().apply { color = android.graphics.Color.WHITE }
+            android.graphics.Canvas(full).drawRect(
+                b.left * captureScale - m, b.top * captureScale - m,
+                b.right * captureScale + m, b.bottom * captureScale + m, paint
+            )
+        }
 
         // Ignora o topo, onde fica o card do Assistente 99 (evita ler a si mesmo).
         val top = (height * IGNORE_TOP_FRACTION).toInt()

@@ -85,6 +85,63 @@ class Prefs(context: Context) {
         get() = sp.getString("ocr_rejected", "") ?: ""
         set(v) = sp.edit().putString("ocr_rejected", v).apply()
 
+    // ---------- Aparência do card ----------
+
+    /** Tamanho do card e dos textos, em %, de 60 a 200. */
+    var cardScalePercent: Int
+        get() = sp.getInt("card_scale", 100).coerceIn(60, 200)
+        set(v) = sp.edit().putInt("card_scale", v.coerceIn(60, 200)).apply()
+
+    val cardScale: Float get() = cardScalePercent / 100f
+
+    /** Opacidade do card, em %, de 30 a 100. */
+    var cardAlpha: Int
+        get() = sp.getInt("card_alpha", 90).coerceIn(30, 100)
+        set(v) = sp.edit().putInt("card_alpha", v.coerceIn(30, 100)).apply()
+
+    /** Fonte: 0 padrão, 1 condensada, 2 serifada, 3 monoespaçada, 4 casual. */
+    var cardFont: Int
+        get() = sp.getInt("card_font", 0)
+        set(v) = sp.edit().putInt("card_font", v).apply()
+
+    /** Posição na tela, de 0 a 8 (ver [RideCardView.POSITION_NAMES]). */
+    var cardPosition: Int
+        get() = sp.getInt("card_position", 0).coerceIn(0, 8)
+        set(v) = sp.edit().putInt("card_position", v.coerceIn(0, 8)).apply()
+
+    var showPerKm: Boolean
+        get() = sp.getBoolean("show_per_km", true)
+        set(v) = sp.edit().putBoolean("show_per_km", v).apply()
+
+    var showPerHour: Boolean
+        get() = sp.getBoolean("show_per_hour", true)
+        set(v) = sp.edit().putBoolean("show_per_hour", v).apply()
+
+    var showPrice: Boolean
+        get() = sp.getBoolean("show_price", true)
+        set(v) = sp.edit().putBoolean("show_price", v).apply()
+
+    var showKm: Boolean
+        get() = sp.getBoolean("show_km", true)
+        set(v) = sp.edit().putBoolean("show_km", v).apply()
+
+    var showTime: Boolean
+        get() = sp.getBoolean("show_time", false)
+        set(v) = sp.edit().putBoolean("show_time", v).apply()
+
+    var showProfit: Boolean
+        get() = sp.getBoolean("show_profit", true)
+        set(v) = sp.edit().putBoolean("show_profit", v).apply()
+
+    /** Volta a aparência do card ao padrão (não mexe nas faixas de R$/km nem no custo do carro). */
+    fun resetCard() {
+        sp.edit()
+            .remove("card_scale").remove("card_alpha").remove("card_font").remove("card_position")
+            .remove("show_per_km").remove("show_per_hour").remove("show_price")
+            .remove("show_km").remove("show_time").remove("show_profit")
+            .apply()
+    }
+
     companion object {
         const val DEFAULT_PACKAGES = "com.app99.driver,com.ubercab.driver"
     }

@@ -34,6 +34,18 @@ O card de solicitação da Uber não expõe o texto ao serviço de acessibilidad
 
 O texto lido por OCR aparece em **Ver o que o app leu da tela**, na seção "LEITURA POR OCR".
 
+## Personalizar o card
+
+Na tela principal, **Personalizar o card** permite ajustar, com prévia ao vivo:
+
+- **Tamanho** (60% a 200%) e **opacidade** (30% a 100%);
+- **Fonte** (padrão, condensada, serifada, monoespaçada, casual);
+- **O que mostrar**: R$/km, valor da corrida, distância, R$/h, tempo total e lucro estimado;
+- **Posição**: 9 lugares (topo, meio ou base × esquerda, centro ou direita);
+- **Testar sobre outros apps**: mostra o card por 6 s para você ver o resultado de verdade.
+
+As mudanças valem já na próxima solicitação. Na leitura por OCR (Uber), o app tapa a área do próprio card na imagem antes de ler, para não ler a si mesmo. Mas isso também esconde da leitura o que estiver embaixo dele: se o card cobrir o valor ou os km da solicitação, a Uber deixa de ser lida. Escolha uma posição que não tape esses dados (topo ou borda) e reduza o tamanho se precisar.
+
 ## Histórico das últimas 10 viagens
 
 Na tela principal, **Últimas 10 viagens (Uber e 99)** abre a lista das solicitações recebidas. Cada item mostra o app de origem (Uber ou 99), o horário, o R$/km, o valor, o tempo (até o passageiro + viagem), a distância e os endereços de embarque e destino, com um botão para abrir cada endereço no app de mapas do celular. O histórico fica só no aparelho, e "Limpar histórico" apaga tudo.
