@@ -70,6 +70,11 @@ class Prefs(context: Context) {
         get() = sp.getLong("last_ride_dump_at", 0L)
         set(v) = sp.edit().putLong("last_ride_dump_at", v).apply()
 
+    /** Diagnóstico: última leitura feita por OCR (captura de tela). */
+    var lastOcrDump: String
+        get() = sp.getString("last_ocr_dump", "") ?: ""
+        set(v) = sp.edit().putString("last_ocr_dump", v).apply()
+
     companion object {
         const val DEFAULT_PACKAGES = "com.app99.driver,com.ubercab.driver"
     }

@@ -25,6 +25,43 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pkgField: EditText
     private lateinit var pickupCheck: CheckBox
     private lateinit var debugCheck: CheckBox
+    private lateinit var ocrStatus: TextView
+
+    private val captureLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            val intent = Intent(this, ScreenCaptureService::class.java).apply {
+                putExtra(ScreenCaptureService.EXTRA_CODE, result.resultCode)
+                putExtra(ScreenCaptureService.EXTRA_DATA, result.data)
+            }
+            androidx.core.content.ContextCompat.startForegroundService(this, intent)
+            ocrStatus.text = "Captura de tela: ligada. Pode abrir a Uber."
+        } else {
+            ocrStatus.text = "Captura de tela: permissão negada."
+        }
+    }
+
+    private val notificationLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { launchCapturePrompt() }
+
+    private fun startOcr() {
+        // A notificação do serviço de captura precisa da permissão de notificações no Android 13+.
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            launchCapturePrompt()
+        }
+    }
+
+    private fun launchCapturePrompt() {
+        val mpm = getSystemService(MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+        captureLauncher.launch(mpm.createScreenCaptureIntent())
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +127,26 @@ class MainActivity : AppCompatActivity() {
         }
         col.addView(debugCheck)
 
+        col.addView(TextView(this).apply {
+            text = "Leitura por captura de tela (OCR): necessária para o card de solicitação da Uber, " +
+                "que o app não entrega como texto. Tudo é processado no aparelho, nada é salvo nem enviado."
+            textSize = 13f
+            setPadding(0, pad, 0, 0)
+        })
+        ocrStatus = TextView(this).apply { textSize = 14f }
+        col.addView(ocrStatus)
+        col.addView(Button(this).apply {
+            text = "2) Ligar leitura por captura de tela"
+            setOnClickListener { startOcr() }
+        })
+        col.addView(Button(this).apply {
+            text = "Desligar leitura por captura de tela"
+            setOnClickListener {
+                stopService(Intent(this@MainActivity, ScreenCaptureService::class.java))
+                ocrStatus.text = "Captura de tela: desligada."
+            }
+        })
+
         col.addView(Button(this).apply {
             text = "Ver o que o app leu da tela"
             setOnClickListener { showDump() }
@@ -110,6 +167,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (::ocrStatus.isInitialized) {
+            ocrStatus.text = if (OcrState.running) "Captura de tela: ligada." else "Captura de tela: desligada."
+        }
         status.text = if (isServiceEnabled()) {
             "Serviço ATIVO. Abra o app da 99 ou da Uber e fique online."
         } else {
@@ -145,7 +205,9 @@ class MainActivity : AppCompatActivity() {
             val secs = (System.currentTimeMillis() - prefs.lastRideDumpAt) / 1000
             "Capturas (mais recente primeiro; a última foi há $secs s):\n\n${prefs.lastRideDump}"
         }
-        val message = "ÚLTIMA TELA COM PREÇO E KM (radar/corrida):\n$rideDump\n\n" +
+        val ocr = prefs.lastOcrDump.ifBlank { "Nada lido por OCR ainda (captura ${if (OcrState.running) "ligada" else "DESLIGADA"})." }
+        val message = "LEITURA POR OCR (captura de tela):\n$ocr\n\n" +
+            "ÚLTIMA TELA COM PREÇO E KM (radar/corrida):\n$rideDump\n\n" +
             "Apps que enviaram eventos de tela (pacote: quantidade):\n$seen\n\n" +
             "Estado da última leitura:\n$status\n\n$texts"
         androidx.appcompat.app.AlertDialog.Builder(this)

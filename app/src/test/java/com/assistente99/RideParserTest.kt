@@ -80,6 +80,31 @@ class RideParserTest {
     }
 
     @Test
+    fun parsesUberOcrLinesFromRecording() {
+        // Linhas como o OCR deve devolver para o card da gravação (R$ lido como "RS", sem parênteses).
+        val ride = RideParser.parseOcr(
+            listOf(
+                "UberX", "Exclusivo", "RS 41,74", "Est. de R$1,16/km", "4,75 (117)",
+                "20 min (12.5 km)", "R. Duque de Caxias, Bela Parnamirim, Macaiba",
+                "32 minutos (23.5 km)", "Av. Gov. Rafael Fernandes, 801, Alecrim, Natal",
+                "Viagem longa (mais de 30 min)", "Aceitar"
+            )
+        )!!
+        assertEquals(41.74, ride.price, 0.001)
+        assertEquals(12.5, ride.pickupKm!!, 0.001)
+        assertEquals(23.5, ride.tripKm!!, 0.001)
+        assertEquals(1.16, ride.perKm(true)!!, 0.01)
+    }
+
+    @Test
+    fun ocrToleratesMissingParentheses() {
+        val ride = RideParser.parseOcr(listOf("R5 12,01", "8 min 4.3 km", "10 minutos 6.1 km"))!!
+        assertEquals(12.01, ride.price, 0.001)
+        assertEquals(4.3, ride.pickupKm!!, 0.001)
+        assertEquals(6.1, ride.tripKm!!, 0.001)
+    }
+
+    @Test
     fun handlesNonBreakingSpaces() {
         val ride = RideParser.parse(
             listOf("R$ 12,01", "8 min (4.3 km)", "10 minutos (6.1 km)")

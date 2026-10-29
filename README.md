@@ -24,6 +24,16 @@ App Android que lê, em tempo real, a solicitação de corrida na tela do app de
 2. Ajuste as faixas de R$/km, o custo do carro por km (opcional) e se o km até o passageiro entra na conta. Toque em Salvar.
 3. Abra o app da 99 ou da Uber, fique online e aguarde uma solicitação. O mesmo card funciona nos dois.
 
+## Uber: leitura por captura de tela (OCR)
+
+O card de solicitação da Uber não expõe o texto ao serviço de acessibilidade (o modo diagnóstico mostra "tela sem nenhum texto legível"). Para esse caso o app lê a imagem da tela:
+
+1. Na tela principal, toque em **2) Ligar leitura por captura de tela** e aceite o aviso do Android ("Começar a gravar/transmitir").
+2. Uma notificação "Assistente 99" fica ativa enquanto a captura está ligada. Se tirar o app da memória, ligue de novo.
+3. Só quando um app monitorado mostra uma tela sem texto o app tira um print (na memória, nada é salvo nem enviado), lê com OCR no aparelho e mostra o R$/km. Nas outras telas não gasta bateria extra.
+
+O texto lido por OCR aparece em **Ver o que o app leu da tela**, na seção "LEITURA POR OCR".
+
 ## Ajuste importante: o parser é heurístico
 
 O layout do app da 99 não é público e muda. O parser assume:

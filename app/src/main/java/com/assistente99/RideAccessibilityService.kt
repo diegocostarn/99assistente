@@ -42,6 +42,20 @@ class RideAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         prefs = Prefs(this)
         overlay = OverlayView(this)
+        instance = this
+    }
+
+    /** Chamado pelo serviço de captura (OCR) quando ele reconhece uma corrida na imagem. */
+    fun showRideFromOcr(ride: RideInfo) {
+        handler.post {
+            handler.removeCallbacks(hideRunnable)
+            overlay.show(ride, prefs)
+        }
+    }
+
+    /** Chamado pelo serviço de captura (OCR) quando a corrida saiu da tela. */
+    fun hideFromOcr() {
+        handler.post { overlay.hide() }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -145,10 +159,21 @@ class RideAccessibilityService : AccessibilityService() {
         saveRideDump(pkg, texts)
 
         val ride = RideParser.parse(texts)
+
+        // Tela quase sem texto num app monitorado = card que o app não expõe (caso da Uber).
+        // Avisa o serviço de OCR, que lê a imagem da tela no lugar.
+        val sparse = texts.size <= SPARSE_MAX_TEXTS
+        if (sparse) OcrState.lastSparseAt = System.currentTimeMillis()
+        if (ride != null) OcrState.lastAccessibilityRideAt = System.currentTimeMillis()
+
         when {
             ride != null -> {
                 handler.removeCallbacks(hideRunnable)
                 overlay.show(ride, prefs)
+            }
+            sparse && OcrState.running -> {
+                // O OCR cuida do card; só evita que um "esconder" pendente apague o que ele mostrou.
+                handler.removeCallbacks(hideRunnable)
             }
             prefs.debugMode -> {
                 handler.removeCallbacks(hideRunnable)
@@ -233,11 +258,18 @@ class RideAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         if (::overlay.isInitialized) overlay.hide()
+        if (instance === this) instance = null
         super.onDestroy()
     }
 
     companion object {
         private const val TAG = "Assistente99"
+
+        /** Tela com até esta quantidade de textos é considerada "sem texto legível". */
+        private const val SPARSE_MAX_TEXTS = 3
+
+        @Volatile
+        var instance: RideAccessibilityService? = null
     }
 }
 

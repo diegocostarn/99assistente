@@ -55,10 +55,18 @@ object RideParser {
     private val minRegex = Regex("""(\d+)\s*min(?:utos?)?\b""", RegexOption.IGNORE_CASE)
 
     // "8 min (4.3 km)", "10 minutos (6,1 km)", "6 minutos (2,1 km) de distância".
+    // Parênteses opcionais: o OCR às vezes não os reconhece.
     private val pairRegex = Regex(
-        """(\d+)\s*min(?:utos?)?\s*\(\s*(\d+(?:[.,]\d+)?)\s*(km|m)\s*\)""",
+        """(\d+)\s*min(?:utos?)?\s*\(?\s*(\d+(?:[.,]\d+)?)\s*(km|m)\b\s*\)?""",
         RegexOption.IGNORE_CASE
     )
+
+    // O OCR costuma ler "R$" como "RS" ou "R5".
+    private val ocrCurrencyRegex = Regex("""\bR[S5]\s?(?=\d)""")
+
+    /** Como [parse], mas corrige erros típicos de OCR antes. */
+    fun parseOcr(lines: List<String>): RideInfo? =
+        parse(lines.map { line -> ocrCurrencyRegex.replace(line) { "R\$ " } })
 
     fun parse(rawTexts: List<String>): RideInfo? {
         // Formatação de moeda e unidades costuma usar espaço não separável (U+00A0),
