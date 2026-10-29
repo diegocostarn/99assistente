@@ -24,6 +24,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var costField: EditText
     private lateinit var pkgField: EditText
     private lateinit var pickupCheck: CheckBox
+    private lateinit var debugCheck: CheckBox
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,6 +84,17 @@ class MainActivity : AppCompatActivity() {
         pkgField = EditText(this).apply { setText(prefs.packagesText) }
         col.addView(pkgField)
 
+        debugCheck = CheckBox(this).apply {
+            text = "Modo diagnóstico (mostra um card mesmo sem reconhecer a corrida)"
+            isChecked = prefs.debugMode
+        }
+        col.addView(debugCheck)
+
+        col.addView(Button(this).apply {
+            text = "Ver o que o app leu da tela"
+            setOnClickListener { showDump() }
+        })
+
         col.addView(Button(this).apply {
             text = "Salvar"
             setOnClickListener { save() }
@@ -111,8 +123,33 @@ class MainActivity : AppCompatActivity() {
         prefs.goodPerKm = parse(goodField)
         prefs.costPerKm = parse(costField)
         prefs.includePickup = pickupCheck.isChecked
+        prefs.debugMode = debugCheck.isChecked
         prefs.packagesText = pkgField.text.toString().ifBlank { Prefs.DEFAULT_PACKAGES }
         Toast.makeText(this, "Salvo", Toast.LENGTH_SHORT).show()
+    }
+
+    /** Mostra o último texto lido da tela dos apps e permite compartilhar (ex.: WhatsApp). */
+    private fun showDump() {
+        val dump = prefs.lastDump
+        val message = if (dump.isBlank()) {
+            "Nada lido ainda.\n\nAtive o serviço de acessibilidade, abra o app da 99 ou da Uber " +
+                "(na tela do radar ou com uma solicitação aberta) e volte aqui."
+        } else {
+            val secs = (System.currentTimeMillis() - prefs.lastDumpAt) / 1000
+            "Lido há $secs s.\n\n$dump"
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Última leitura da tela")
+            .setMessage(message)
+            .setPositiveButton("Compartilhar") { _, _ ->
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, message)
+                }
+                startActivity(Intent.createChooser(send, "Compartilhar"))
+            }
+            .setNegativeButton("Fechar", null)
+            .show()
     }
 
     private fun isServiceEnabled(): Boolean {

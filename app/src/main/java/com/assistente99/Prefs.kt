@@ -37,6 +37,20 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("include_pickup", true)
         set(v) = sp.edit().putBoolean("include_pickup", v).apply()
 
+    /** Modo diagnóstico: mostra um card mesmo quando nenhuma corrida é reconhecida. */
+    var debugMode: Boolean
+        get() = sp.getBoolean("debug_mode", false)
+        set(v) = sp.edit().putBoolean("debug_mode", v).apply()
+
+    /** Último conjunto de textos lidos da tela dos apps monitorados (para diagnóstico). */
+    var lastDump: String
+        get() = sp.getString("last_dump", "") ?: ""
+        set(v) = sp.edit().putString("last_dump", v).apply()
+
+    var lastDumpAt: Long
+        get() = sp.getLong("last_dump_at", 0L)
+        set(v) = sp.edit().putLong("last_dump_at", v).apply()
+
     companion object {
         const val DEFAULT_PACKAGES = "com.app99.driver,com.ubercab.driver"
     }

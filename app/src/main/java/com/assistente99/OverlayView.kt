@@ -59,6 +59,15 @@ class OverlayView(private val service: AccessibilityService) {
         line2?.visibility = if (parts.isEmpty()) View.GONE else View.VISIBLE
     }
 
+    /** Card de diagnóstico: aparece quando há leitura de tela mas nenhuma corrida reconhecida. */
+    fun showDebug(message: String) {
+        ensureCreated()
+        bg?.setColor(COLOR_NEUTRAL)
+        title?.text = "Diagnóstico"
+        line1?.text = message
+        line2?.visibility = View.GONE
+    }
+
     fun hide() {
         root?.let {
             try {

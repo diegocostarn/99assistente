@@ -54,6 +54,42 @@ class RideParserTest {
     }
 
     @Test
+    fun parsesUberRadarCard() {
+        val ride = RideParser.parse(
+            listOf(
+                "Priority",
+                "R$12,01",
+                "Est. de R$1,15/km",
+                "4,78 (487)",
+                "Verificado",
+                "+R$ 1,98 incluída para retirada",
+                "8 min (4.3 km)",
+                "R. Missionario Gunnar Vingren, Capim Macio, Natal",
+                "10 minutos (6.1 km)",
+                "Rua Creuza Dantas Maciel, 19, Parque do Pitimbu, Parnamirim",
+                "Tenho interesse"
+            )
+        )!!
+        assertEquals(12.01, ride.price, 0.001)
+        assertEquals(4.3, ride.pickupKm!!, 0.001)
+        assertEquals(6.1, ride.tripKm!!, 0.001)
+        assertEquals(8, ride.pickupMin)
+        assertEquals(10, ride.tripMin)
+        // Mesmo valor que o app da Uber estima: R$ 1,15/km.
+        assertEquals(1.15, ride.perKm(true)!!, 0.01)
+    }
+
+    @Test
+    fun handlesNonBreakingSpaces() {
+        val ride = RideParser.parse(
+            listOf("R$ 12,01", "8 min (4.3 km)", "10 minutos (6.1 km)")
+        )!!
+        assertEquals(12.01, ride.price, 0.001)
+        assertEquals(4.3, ride.pickupKm!!, 0.001)
+        assertEquals(6.1, ride.tripKm!!, 0.001)
+    }
+
+    @Test
     fun ignoresScreensWithoutPriceOrDistance() {
         assertNull(RideParser.parse(listOf("Você está online", "Buscando corridas")))
         assertNull(RideParser.parse(listOf("R$ 10,00")))

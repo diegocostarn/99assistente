@@ -35,29 +35,55 @@ data class RideInfo(
 /**
  * Extrai preço, distâncias e tempos a partir dos textos visíveis na tela do app.
  *
- * Heurística (o layout do app muda de tempos em tempos):
- *  - preço: primeiro "R$ 12,50" encontrado;
- *  - distâncias: valores em "km" ou "m", na ordem em que aparecem.
- *    Com 2 ou mais, a 1ª é o deslocamento até o passageiro e a 2ª é a viagem.
- *    Com apenas 1, ela é tratada como viagem;
- *  - tempos: valores em "min", mesma regra de ordem.
+ * Layout do radar da Uber (e semelhante na 99):
+ *   "R$12,01"                      -> preço da corrida
+ *   "Est. de R$1,15/km"            -> estimativa do próprio app (ignorada)
+ *   "+R$ 1,98 incluída para ..."   -> bônus já somado ao preço (ignorado)
+ *   "8 min (4.3 km)"               -> 1º par: deslocamento até o passageiro
+ *   "10 minutos (6.1 km)"          -> 2º par: viagem
+ *
+ * Sem pares "min (km)", usa a ordem das distâncias soltas: 1ª = passageiro, 2ª = viagem
+ * (se houver só uma, é a viagem).
  */
 object RideParser {
 
     private val priceRegex = Regex("""R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+(?:,\d{1,2})?)""")
+    private val priceOnlyRegex = Regex("""^R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+(?:,\d{1,2})?)$""")
     private val distRegex = Regex("""(\d+(?:[.,]\d+)?)\s*(km|m)\b""", RegexOption.IGNORE_CASE)
+
     // Aceita "4 min" (99) e "4 minutos" (Uber).
     private val minRegex = Regex("""(\d+)\s*min(?:utos?)?\b""", RegexOption.IGNORE_CASE)
 
-    fun parse(texts: List<String>): RideInfo? {
+    // "8 min (4.3 km)", "10 minutos (6,1 km)", "6 minutos (2,1 km) de distância".
+    private val pairRegex = Regex(
+        """(\d+)\s*min(?:utos?)?\s*\(\s*(\d+(?:[.,]\d+)?)\s*(km|m)\s*\)""",
+        RegexOption.IGNORE_CASE
+    )
+
+    fun parse(rawTexts: List<String>): RideInfo? {
+        // Formatação de moeda e unidades costuma usar espaço não separável (U+00A0),
+        // que o "\s" do regex não reconhece. Troca por espaço comum antes de tudo.
+        val texts = rawTexts.map { normalize(it) }
+
+        val price = findPrice(texts) ?: return null
         val joined = texts.joinToString(" | ")
 
-        val price = priceRegex.find(joined)?.groupValues?.get(1)?.let { parseBrNumber(it) }
-            ?: return null
+        val pairs = pairRegex.findAll(joined).mapNotNull { m ->
+            val min = m.groupValues[1].toIntOrNull() ?: return@mapNotNull null
+            val km = toKm(m.groupValues[2], m.groupValues[3]) ?: return@mapNotNull null
+            min to km
+        }.toList()
+
+        if (pairs.isNotEmpty()) {
+            return if (pairs.size >= 2) {
+                RideInfo(price, pairs[0].second, pairs[1].second, pairs[0].first, pairs[1].first)
+            } else {
+                RideInfo(price, null, pairs[0].second, null, pairs[0].first)
+            }
+        }
 
         val distances = distRegex.findAll(joined).mapNotNull { m ->
-            val value = parseBrNumber(m.groupValues[1]) ?: return@mapNotNull null
-            if (m.groupValues[2].equals("m", ignoreCase = true)) value / 1000.0 else value
+            toKm(m.groupValues[1], m.groupValues[2])
         }.toList()
         if (distances.isEmpty()) return null
 
@@ -86,7 +112,31 @@ object RideParser {
         return RideInfo(price, pickupKm, tripKm, pickupMin, tripMin)
     }
 
-    /** Converte "1.234,56" ou "12,5" ou "3.4" em Double. */
+    /**
+     * O preço é o texto que é só "R$ xx,xx". Se não houver, pega o primeiro "R$" de um texto
+     * que não seja estimativa por km, bônus ("+R$ ...") nem "incluída".
+     */
+    private fun findPrice(texts: List<String>): Double? {
+        for (t in texts) {
+            priceOnlyRegex.find(t.trim())?.let { return parseBrNumber(it.groupValues[1]) }
+        }
+        for (t in texts) {
+            val lower = t.lowercase()
+            if ("/km" in lower || "incluíd" in lower || "est." in lower || t.trimStart().startsWith("+")) continue
+            priceRegex.find(t)?.let { return parseBrNumber(it.groupValues[1]) }
+        }
+        return null
+    }
+
+    private fun normalize(s: String): String =
+        s.replace(' ', ' ').replace(' ', ' ').replace(' ', ' ')
+
+    private fun toKm(number: String, unit: String): Double? {
+        val value = parseBrNumber(number) ?: return null
+        return if (unit.equals("m", ignoreCase = true)) value / 1000.0 else value
+    }
+
+    /** Converte "1.234,56", "12,5" ou "4.3" em Double. */
     private fun parseBrNumber(s: String): Double? {
         val clean = if (s.contains(',')) s.replace(".", "").replace(',', '.') else s
         return clean.toDoubleOrNull()
