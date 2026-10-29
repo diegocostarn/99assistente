@@ -49,6 +49,8 @@ class ScreenCaptureService : Service() {
 
     private var busy = false
     private var lastOcrDump = ""
+    private val ocrRideHistory = ArrayList<String>()
+    private val kmRegex = Regex("""\d\s*km""", RegexOption.IGNORE_CASE)
     private var stopped = false
 
     private val projectionCallback = object : MediaProjection.Callback() {
@@ -197,6 +199,16 @@ class ScreenCaptureService : Service() {
             lastOcrDump = dump
             prefs.lastOcrDump = "[${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
                 .format(java.util.Date())}] ${lines.size} linhas\n${dump.take(2000)}"
+        }
+
+        // Leituras com "km" (card de corrida) vão para um histórico próprio: a tela inicial lida
+        // um segundo depois não apaga o texto do card.
+        if (kmRegex.containsMatchIn(dump)) {
+            val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                .format(java.util.Date())
+            ocrRideHistory.add(0, "[$time] ${lines.size} linhas\n${dump.take(1500)}")
+            while (ocrRideHistory.size > 5) ocrRideHistory.removeAt(ocrRideHistory.size - 1)
+            prefs.ocrRideHistory = ocrRideHistory.joinToString("\n\n---\n\n")
         }
 
         val ride = RideParser.parseOcr(lines)

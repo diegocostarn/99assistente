@@ -206,7 +206,11 @@ class MainActivity : AppCompatActivity() {
             "Capturas (mais recente primeiro; a última foi há $secs s):\n\n${prefs.lastRideDump}"
         }
         val ocr = prefs.lastOcrDump.ifBlank { "Nada lido por OCR ainda (captura ${if (OcrState.running) "ligada" else "DESLIGADA"})." }
-        val message = "LEITURA POR OCR (captura de tela):\n$ocr\n\n" +
+        val ocrRides = prefs.ocrRideHistory.ifBlank {
+            "Nenhuma leitura de OCR com km ainda (o card da corrida precisa estar na tela com a captura ligada)."
+        }
+        val message = "OCR - LEITURAS COM KM (mais recente primeiro):\n$ocrRides\n\n" +
+            "OCR - ÚLTIMA LEITURA (qualquer tela):\n$ocr\n\n" +
             "ÚLTIMA TELA COM PREÇO E KM (radar/corrida):\n$rideDump\n\n" +
             "Apps que enviaram eventos de tela (pacote: quantidade):\n$seen\n\n" +
             "Estado da última leitura:\n$status\n\n$texts"
