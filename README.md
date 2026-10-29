@@ -33,7 +33,8 @@ O layout do app da 99 não é público e muda. O parser assume:
 
 Se o card não aparecer ou mostrar valores errados:
 
-1. Conecte o celular ao computador e rode `adb logcat -s Assistente99`.
+0. Sem computador: ligue o **Modo diagnóstico** na tela principal, salve, abra o app (com a solicitação na tela) e volte em **Ver o que o app leu da tela** > **Compartilhar**.
+1. Com computador: conecte o celular e rode `adb logcat -s Assistente99`.
 2. Receba uma solicitação e copie a linha `Textos da tela: ...`.
 3. Ajuste os regex/ordem em `RideParser.kt`. Os testes em `RideParserTest.kt` mostram o formato esperado; adicione um com o texto real.
 4. Se o pacote de algum app for diferente (`com.app99.driver`, `com.ubercab.driver`), mude na tela de configuração. Os tempos aceitam "min" (99) e "minutos" (Uber).
