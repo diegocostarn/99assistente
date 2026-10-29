@@ -27,13 +27,14 @@ class RideLog(context: Context) {
         val dropoffAddress: String?
     )
 
-    private val sp = context.applicationContext
-        .getSharedPreferences("assistente99_log", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val sp = appContext.getSharedPreferences("assistente99_log", Context.MODE_PRIVATE)
 
     fun all(): List<Entry> = synchronized(LOCK) { read() }
 
     fun clear() {
         synchronized(LOCK) { sp.edit().remove(KEY).apply() }
+        RideNotifier.cancel(appContext)
     }
 
     /** Registra (ou atualiza) uma solicitação. [source] é "Uber" ou "99". */
@@ -41,6 +42,8 @@ class RideLog(context: Context) {
         if (ride.tripKm == null || ride.price <= 0.0) return
         synchronized(LOCK) {
             val list = read().toMutableList()
+            var shown: Entry? = null
+            var isNew = false
             val now = System.currentTimeMillis()
             val i = list.indexOfFirst {
                 it.source == source && abs(it.price - ride.price) < 0.005 && now - it.time < DEDUP_MS
@@ -63,6 +66,7 @@ class RideLog(context: Context) {
                     pickupAddress = longer(old.pickupAddress, ride.pickupAddress),
                     dropoffAddress = longer(old.dropoffAddress, ride.dropoffAddress)
                 )
+                shown = list[i]
             } else {
                 list.add(
                     0,
@@ -79,8 +83,12 @@ class RideLog(context: Context) {
                         dropoffAddress = ride.dropoffAddress
                     )
                 )
+                shown = list[0]
+                isNew = true
             }
             write(list.take(MAX))
+            // Atalho na barra de notificações com a corrida que acabou de ser lida.
+            shown?.let { RideNotifier.onRecorded(appContext, it, isNew) }
         }
     }
 

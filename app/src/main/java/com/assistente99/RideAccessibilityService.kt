@@ -67,6 +67,17 @@ class RideAccessibilityService : AccessibilityService() {
     /** Posição do card na tela, para o OCR tapá-lo na imagem (assim ele não lê o próprio card). */
     fun overlayBounds(): android.graphics.Rect? = if (::overlay.isInitialized) overlay.bounds() else null
 
+    /** Chamado pelo serviço de captura (OCR) com todas as corridas reconhecidas na imagem. */
+    fun showRidesFromOcr(rides: List<RideInfo>) {
+        if (rides.isEmpty()) return
+        handler.post {
+            handler.removeCallbacks(hideRunnable)
+            if (rides.size > 1) overlay.showMany(rides, prefs) else overlay.show(rides[0], prefs)
+            val source = RideLog.sourceLabel(OcrState.lastSparsePkg)
+            for (r in rides) rideLog.record(source, r, prefs.includePickup)
+        }
+    }
+
     /** Chamado pelo serviço de captura (OCR) quando a corrida saiu da tela. */
     fun hideFromOcr() {
         handler.post { overlay.hide() }
@@ -172,7 +183,8 @@ class RideAccessibilityService : AccessibilityService() {
         saveDump(pkg, nodes, texts)
         saveRideDump(pkg, texts)
 
-        val ride = RideParser.parse(texts)
+        val rides = RideParser.parseAll(texts)
+        val ride = rides.firstOrNull()
 
         // Tela quase sem texto num app monitorado = card que o app não expõe (caso da Uber).
         // Avisa o serviço de OCR, que lê a imagem da tela no lugar.
@@ -183,13 +195,21 @@ class RideAccessibilityService : AccessibilityService() {
         }
         if (ride != null) OcrState.lastAccessibilityRideAt = System.currentTimeMillis()
 
+        // Tela com texto, mas sem corrida reconhecida: a 99 às vezes expõe só parte do card.
+        // Se a opção estiver ligada, o OCR também tenta ler essa tela.
+        val unparsedWide = ride == null && !sparse && texts.isNotEmpty() && prefs.ocrWhenText
+        if (unparsedWide) {
+            OcrState.lastUnparsedAt = System.currentTimeMillis()
+            OcrState.lastSparsePkg = pkg
+        }
+
         when {
             ride != null -> {
                 handler.removeCallbacks(hideRunnable)
-                overlay.show(ride, prefs)
-                rideLog.record(RideLog.sourceLabel(pkg), ride, prefs.includePickup)
+                if (rides.size > 1) overlay.showMany(rides, prefs) else overlay.show(ride, prefs)
+                for (r in rides) rideLog.record(RideLog.sourceLabel(pkg), r, prefs.includePickup)
             }
-            sparse && OcrState.running -> {
+            (sparse || unparsedWide) && OcrState.running -> {
                 // O OCR cuida do card; só evita que um "esconder" pendente apague o que ele mostrou.
                 handler.removeCallbacks(hideRunnable)
             }

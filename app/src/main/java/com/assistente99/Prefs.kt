@@ -142,6 +142,19 @@ class Prefs(context: Context) {
             .apply()
     }
 
+    /**
+     * Ler por imagem (OCR) também quando a tela do app tem algum texto, mas a corrida não foi reconhecida
+     * (a 99 às vezes expõe só parte do card). Gasta mais bateria: uma leitura a cada ~2 s com o app na frente.
+     */
+    var ocrWhenText: Boolean
+        get() = sp.getBoolean("ocr_when_text", true)
+        set(v) = sp.edit().putBoolean("ocr_when_text", v).apply()
+
+    /** Notificação silenciosa com a última corrida e botões de mapa. */
+    var notifyLastRide: Boolean
+        get() = sp.getBoolean("notify_last_ride", true)
+        set(v) = sp.edit().putBoolean("notify_last_ride", v).apply()
+
     companion object {
         const val DEFAULT_PACKAGES = "com.app99.driver,com.ubercab.driver"
     }

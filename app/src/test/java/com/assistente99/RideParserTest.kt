@@ -194,6 +194,69 @@ class RideParserTest {
     }
 
     @Test
+    fun parsesNinetyNineOfferCard() {
+        // Solicitação da 99 (print do usuário): preço, "R$1,53/km" da própria 99, e dois blocos "N min (X km)".
+        val ride = RideParser.parse(
+            listOf(
+                "Pgto. no app", "R$27,50", "1,2x", "R$1,53/km", "0% de Taxa99 semanal",
+                "R$2,09 por espera longa incl.", "4,98", "179 corridas", "Perfil Essencial",
+                "5 min (1,7 km)", "SuperFácil Atacado, BR-101, S/N - Emaús, Parnamirim - RN, 59149-290, Brasil",
+                "20 min (16,3 km)", "CLI. MERC J L, Rua Areia Branca, 385, Macaíba - RN, 59280-000, Brasil"
+            )
+        )!!
+        assertEquals(27.50, ride.price, 0.001)
+        assertEquals(1.7, ride.pickupKm!!, 0.001)
+        assertEquals(16.3, ride.tripKm!!, 0.001)
+        assertEquals(1.53, ride.estPerKm!!, 0.001)
+        assertEquals(1.53, ride.perKm(true)!!, 0.01) // igual ao R$1,53/km mostrado pela 99
+        assertEquals("SuperFácil Atacado, BR-101, S/N - Emaús, Parnamirim - RN, 59149-290, Brasil", ride.pickupAddress)
+        assertEquals("CLI. MERC J L, Rua Areia Branca, 385, Macaíba - RN, 59280-000, Brasil", ride.dropoffAddress)
+    }
+
+    @Test
+    fun parsesNinetyNineRequestsListWithTwoRides() {
+        // Tela "Solicitações" da 99 (print do usuário): duas corridas ao mesmo tempo, endereço na mesma linha do tempo/km.
+        val rides = RideParser.parseAll(
+            listOf(
+                "Solicitações", "Escolha uma", "Km até o embarque",
+                "Pop", "R$24,60", "100% dos ganhos", "4,87", "395 corridas", "Cartão verif.",
+                "(3 min 707 m) Condomínio Canto Pássaros, Rua das Algarobas, 1455 - Pitimbú, Natal - RN, 59067-500, Brasil",
+                "(27 min 20 km) casa do espeto, travessa olimpio maciel, Estrada Lagoa das Pedras, 41, Macaíba - RN, 59280-000, Bras",
+                "Escolher",
+                "Pop", "R$7,10", "100% dos ganho...", "R$1,36/km", "4,95", "531 corridas", "Perfil Essencial",
+                "(4 min 1,5 km) Nova colina, Morada da Paz",
+                "(7 min 3,7 km) IEADERN - Assembleia de Deus em Cidade Satélite, Rua da Gameleira, 2108",
+                "Escolher", "Isso é tudo por enquanto"
+            )
+        )
+        assertEquals(2, rides.size)
+
+        val a = rides[0]
+        assertEquals(24.60, a.price, 0.001)
+        assertEquals(0.707, a.pickupKm!!, 0.001)
+        assertEquals(20.0, a.tripKm!!, 0.001)
+        assertNull(a.estPerKm) // a estimativa "R$1,36/km" é da corrida de baixo, não desta
+        assertEquals("Condomínio Canto Pássaros, Rua das Algarobas, 1455 - Pitimbú, Natal - RN, 59067-500, Brasil", a.pickupAddress)
+
+        val b = rides[1]
+        assertEquals(7.10, b.price, 0.001)
+        assertEquals(1.5, b.pickupKm!!, 0.001)
+        assertEquals(3.7, b.tripKm!!, 0.001)
+        assertEquals(1.36, b.estPerKm!!, 0.001)
+        assertEquals(1.36, b.perKm(true)!!, 0.01) // igual ao R$1,36/km mostrado pela 99
+        assertEquals("Nova colina, Morada da Paz", b.pickupAddress)
+        assertEquals("IEADERN - Assembleia de Deus em Cidade Satélite, Rua da Gameleira, 2108", b.dropoffAddress)
+    }
+
+    @Test
+    fun singleOfferWithBonusLineIsNotSplit() {
+        // Só uma linha "só preço": continua sendo uma corrida só.
+        val rides = RideParser.parseAll(listOf("R$ 12,70", "+R$ 1,00 incluído", "8 min (2.9 km)", "12 minutos (8.1 km)"))
+        assertEquals(1, rides.size)
+        assertEquals(12.70, rides[0].price, 0.001)
+    }
+
+    @Test
     fun ocrFixDoesNotTouchWordsOrCleanNumbers() {
         val ride = RideParser.parseOcr(listOf("R$ 10,00", "Il Lugar Olho", "5 min (2.0 km)", "10 minutos (4.5 km)"))!!
         assertEquals(2.0, ride.pickupKm!!, 0.001)

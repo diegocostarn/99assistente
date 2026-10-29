@@ -48,6 +48,7 @@ class ScreenCaptureService : Service() {
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     private var busy = false
+    private var lastWideOcrAt = 0L
 
     /** Proporção entre a imagem do OCR e a tela real (a imagem é reduzida para ~720 px de largura). */
     private var captureScale = 1f
@@ -153,20 +154,24 @@ class ScreenCaptureService : Service() {
         val svc = RideAccessibilityService.instance
 
         val sparse = now - OcrState.lastSparseAt < OcrState.GRACE_MS
+        val unparsed = prefs.ocrWhenText && now - OcrState.lastUnparsedAt < OcrState.GRACE_MS
+        val active = sparse || unparsed
         val accessibilityHasRide = now - OcrState.lastAccessibilityRideAt < OcrState.GRACE_MS
 
         // Saiu da tela da solicitação: tira o card que o OCR tinha colocado.
-        if (OcrState.shownByOcr && !sparse) {
+        if (OcrState.shownByOcr && !active) {
             OcrState.shownByOcr = false
             svc?.hideFromOcr()
         }
 
         // Sempre esvazia a fila de imagens, mesmo quando não vai usar o quadro.
         val image = r.acquireLatestImage() ?: return
-        if (!sparse || accessibilityHasRide || busy) {
+        // Telas com texto (modo "ler também quando há texto") são lidas com menos frequência, para poupar bateria.
+        if (!active || accessibilityHasRide || busy || (!sparse && now - lastWideOcrAt < WIDE_INTERVAL_MS)) {
             image.close()
             return
         }
+        if (!sparse) lastWideOcrAt = now
 
         val width = image.width
         val height = image.height
@@ -226,25 +231,25 @@ class ScreenCaptureService : Service() {
             prefs.ocrRideHistory = ocrRideHistory.joinToString("\n\n---\n\n")
         }
 
-        val raw = RideParser.parseOcrRaw(lines)
-        val ride = raw?.takeIf { RideParser.isPlausible(it) }
-        if (raw != null && ride == null) {
-            // Leitura que não bate com a estimativa da Uber: não mostra, e guarda para análise.
+        val all = RideParser.parseOcrAllRaw(lines)
+        val good = all.filter { RideParser.isPlausible(it) }
+        for (bad in all.filter { !RideParser.isPlausible(it) }) {
+            // Leitura que não bate com a estimativa por km do card: não mostra, e guarda para análise.
             val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
                 .format(java.util.Date())
-            val calc = raw.perKm(true)?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "?"
+            val calc = bad.perKm(true)?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "?"
             ocrRejected.add(
                 0,
-                "[$time] DESCARTADA: calculei R$ $calc/km, a Uber estima R$ ${raw.estPerKm}/km " +
-                    "(preço ${raw.price}, até o passageiro ${raw.pickupKm} km, viagem ${raw.tripKm} km)\n${dump.take(1200)}"
+                "[$time] DESCARTADA: calculei R$ $calc/km, o app estima R$ ${bad.estPerKm}/km " +
+                    "(preço ${bad.price}, até o passageiro ${bad.pickupKm} km, viagem ${bad.tripKm} km)\n${dump.take(1200)}"
             )
             while (ocrRejected.size > 5) ocrRejected.removeAt(ocrRejected.size - 1)
             prefs.ocrRejected = ocrRejected.joinToString("\n\n---\n\n")
         }
-        if (ride != null) {
+        if (good.isNotEmpty()) {
             OcrState.lastOcrRideAt = now
             OcrState.shownByOcr = true
-            svc?.showRideFromOcr(ride)
+            svc?.showRidesFromOcr(good)
         } else if (OcrState.shownByOcr && now - OcrState.lastOcrRideAt > OcrState.GRACE_MS) {
             OcrState.shownByOcr = false
             svc?.hideFromOcr()
@@ -296,6 +301,7 @@ class ScreenCaptureService : Service() {
         private const val CHANNEL_ID = "ocr"
         private const val NOTIFICATION_ID = 99
         private const val INTERVAL_MS = 900L
+        private const val WIDE_INTERVAL_MS = 2000L
         private const val MAX_WIDTH = 720f
 
         /** Fração do topo da tela ignorada (o card do Assistente 99 aparece ali). */

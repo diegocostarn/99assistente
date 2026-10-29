@@ -179,13 +179,29 @@ object RideParser {
     }
 
     // Linhas que não fazem parte de um endereço, mas aparecem entre os blocos do card.
-    private val skipWords = listOf("verificado", "priority", "exclusivo", "incluíd", "est. de", "radar de viagens")
-    private val endWords = listOf("tenho interesse", "aceitar", "viagem longa", "selecionar", "recusar", "ver detalhes")
+    private val skipWords = listOf(
+        "verificado", "priority", "exclusivo", "incluíd", "est. de", "radar de viagens",
+        "100% dos ganho", "corridas", "taxa99", "perfil ", "cartão verif", "pgto. no app"
+    )
+    private val endWords = listOf(
+        "tenho interesse", "aceitar", "viagem longa", "selecionar", "recusar", "ver detalhes",
+        "escolher", "isso é tudo"
+    )
     private val ratingRegex = Regex("""^\S{0,2}\s*\d[.,]\d{1,2}\s*\(\d+\)""")
 
     /**
+     * Texto que vem logo depois do "N min (X km)" na MESMA linha (na lista de solicitações da 99
+     * o endereço vem junto: "(3 min 707 m) Condomínio X, Rua Y, 1455 - Natal"). Só conta se parecer endereço.
+     */
+    private fun pairRemainder(line: String): String? {
+        val m = pairRegex.find(line) ?: return null
+        val rest = line.substring(m.range.last + 1).trim().trimStart(')', '-', ':', ' ')
+        return if (rest.length >= 10 && rest.contains(',')) rest else null
+    }
+
+    /**
      * Endereços do card, pela posição: o que vem depois do 1º "N min (X km)" é o embarque,
-     * e o que vem depois do 2º é o destino (até "Tenho interesse"/"Aceitar").
+     * e o que vem depois do 2º é o destino (até "Tenho interesse"/"Aceitar"/"Escolher").
      * Devolve (embarque, destino); com um único par, só o destino.
      */
     private fun extractAddresses(texts: List<String>): Pair<String?, String?> {
@@ -215,6 +231,7 @@ object RideParser {
             for (j in from + 1 until texts.size) {
                 val l = texts[j].lowercase()
                 if (endWords.any { it in l }) break
+                if (priceOnlyRegex.containsMatchIn(texts[j].trim())) break // começou outra corrida
                 out += texts[j]
                 if (out.size >= 4) break
             }
@@ -222,12 +239,41 @@ object RideParser {
         }
 
         return if (idx.size >= 2) {
-            val pickup = clean(texts.subList(idx[0] + 1, idx[1]).take(4))
-            pickup to clean(after(idx[1]))
+            val between = texts.subList(idx[0] + 1, idx[1]).take(4)
+            val pickup = clean(listOfNotNull(pairRemainder(texts[idx[0]])) + between)
+            pickup to clean(listOfNotNull(pairRemainder(texts[idx[1]])) + after(idx[1]))
         } else {
-            null to clean(after(idx[0]))
+            null to clean(listOfNotNull(pairRemainder(texts[idx[0]])) + after(idx[0]))
         }
     }
+
+    /**
+     * Telas com várias corridas ao mesmo tempo (lista "Solicitações" da 99): cada corrida começa numa
+     * linha que é só o preço ("R$24,60"). Lê cada trecho separadamente, para a estimativa por km
+     * e os km de uma corrida não se misturarem com os da outra.
+     * Se não houver pelo menos 2 trechos com "N min (X km)", trata a tela como uma corrida só.
+     */
+    fun parseAll(rawTexts: List<String>): List<RideInfo> {
+        val texts = rawTexts.map { normalize(it) }
+        val starts = texts.indices.filter { priceOnlyRegex.containsMatchIn(texts[it].trim()) }
+        if (starts.size >= 2) {
+            val segments = starts.indices.map { n ->
+                texts.subList(starts[n], if (n + 1 < starts.size) starts[n + 1] else texts.size)
+            }
+            if (segments.count { seg -> seg.any { pairRegex.containsMatchIn(it) } } >= 2) {
+                return segments.mapNotNull { parse(it) }
+            }
+        }
+        return listOfNotNull(parse(rawTexts))
+    }
+
+    /** [parseAll] com as correções de OCR, sem conferir com a estimativa por km. */
+    fun parseOcrAllRaw(lines: List<String>): List<RideInfo> =
+        parseAll(lines.map { line -> fixOcrDigits(ocrCurrencyRegex.replace(line) { "R\$ " }) })
+
+    /** [parseOcrAllRaw] só com as leituras plausíveis. */
+    fun parseOcrAll(lines: List<String>): List<RideInfo> =
+        parseOcrAllRaw(lines).filter { isPlausible(it) }
 
     private fun normalize(s: String): String =
         s.replace(' ', ' ').replace(' ', ' ').replace(' ', ' ')

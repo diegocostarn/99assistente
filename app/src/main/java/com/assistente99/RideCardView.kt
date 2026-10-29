@@ -4,6 +4,9 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.util.TypedValue
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -92,6 +95,37 @@ class RideCardView(context: Context) : LinearLayout(context) {
         }
     }
 
+    /**
+     * Várias corridas ao mesmo tempo (lista "Solicitações" da 99): uma linha por corrida, com o R$/km
+     * colorido pela sua faixa (verde, amarelo, vermelho) e o valor e os km ao lado.
+     */
+    fun bindMany(rides: List<RideInfo>, prefs: Prefs) {
+        removeAllViews()
+        applyFrame(prefs, COLOR_NEUTRAL)
+        val includePickup = prefs.includePickup
+        for (ride in rides.take(MAX_ROWS)) {
+            val perKm = ride.perKm(includePickup)
+            val shown = if (prefs.costPerKm > 0f) perKm?.let { it - prefs.costPerKm } else perKm
+            val color = when {
+                shown == null -> 0xFFDDDDDD.toInt()
+                shown >= prefs.goodPerKm -> 0xFF4CD07D.toInt()
+                shown >= prefs.minPerKm -> 0xFFF2B84B.toInt()
+                else -> 0xFFFF6B61.toInt()
+            }
+            val label = if (perKm != null) "R$ ${fmt(perKm)}/km" else "R$ --/km"
+            val rest = "   R$ ${fmt(ride.price)} • ${fmt(ride.totalKm(includePickup))} km"
+            val span = SpannableString(label + rest)
+            span.setSpan(ForegroundColorSpan(color), 0, label.length, 0)
+            span.setSpan(StyleSpan(Typeface.BOLD), 0, label.length, 0)
+            addView(TextView(context).apply {
+                text = span
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f * prefs.cardScale)
+                typeface = fontFor(prefs.cardFont, false)
+            })
+        }
+    }
+
     /** Card de diagnóstico: leitura de tela sem corrida reconhecida. */
     fun bindDebug(message: String, prefs: Prefs) {
         removeAllViews()
@@ -124,6 +158,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
     private fun fmt(v: Double): String = String.format(Locale("pt", "BR"), "%.2f", v)
 
     companion object {
+        private const val MAX_ROWS = 5
         private const val COLOR_GOOD = 0xFF137A3A.toInt()
         private const val COLOR_OK = 0xFFB7791F.toInt()
         private const val COLOR_BAD = 0xFFB3261E.toInt()

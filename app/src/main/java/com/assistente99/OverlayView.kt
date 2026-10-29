@@ -26,6 +26,11 @@ class OverlayView(private val service: AccessibilityService) {
         ensureCreated().bind(ride, prefs)
     }
 
+    /** Várias corridas na mesma tela (lista de solicitações): uma linha por corrida. */
+    fun showMany(rides: List<RideInfo>, prefs: Prefs) {
+        ensureCreated().bindMany(rides, prefs)
+    }
+
     /** Card de diagnóstico: aparece quando há leitura de tela mas nenhuma corrida reconhecida. */
     fun showDebug(message: String) {
         ensureCreated().bindDebug(message, prefs)

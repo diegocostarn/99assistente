@@ -46,6 +46,18 @@ Na tela principal, **Personalizar o card** permite ajustar, com prévia ao vivo:
 
 As mudanças valem já na próxima solicitação. Na leitura por OCR (Uber), o app tapa a área do próprio card na imagem antes de ler, para não ler a si mesmo. Mas isso também esconde da leitura o que estiver embaixo dele: se o card cobrir o valor ou os km da solicitação, a Uber deixa de ser lida. Escolha uma posição que não tape esses dados (topo ou borda) e reduza o tamanho se precisar.
 
+## 99: solicitação única e lista de "Solicitações"
+
+- A solicitação única da 99 mostra o R$/km que o próprio app calcula (por exemplo "R$1,53/km"), e esse valor é o preço dividido pelo km até o passageiro somado ao km da viagem. O app usa isso para conferir a leitura por OCR.
+- A tela **Solicitações** da 99 lista várias corridas ao mesmo tempo. O app separa cada uma (cada corrida começa na linha que é só o preço) e mostra um card com uma linha por corrida: R$/km na cor da sua faixa, valor e km. Todas entram no histórico.
+- Se a tela da 99 tem algum texto, mas a corrida não é reconhecida, o app também tenta ler por imagem (OCR). Isso gasta mais bateria e pode ser desligado na tela principal em **Ler por imagem também quando a tela tiver texto**. Para funcionar, a captura de tela precisa estar ligada.
+
+## Notificação da última corrida
+
+Cada solicitação nova lida pelo app atualiza uma notificação **silenciosa** na barra de notificações (sem som, sem vibração e sem aparecer por cima da tela). Fechada, mostra o app (Uber ou 99), o R$/km, o valor, o tempo e a distância. Aberta (puxe para baixo ou toque na seta), mostra também os endereços, e tem os botões **Embarque no mapa** e **Destino no mapa**. Tocar na notificação abre as últimas viagens. Dá para tirá-la deslizando, e ela volta na próxima corrida.
+
+Para desligar, use **Mostrar a última corrida na barra de notificações** na tela principal. No Android 13 ou mais novo o app pede a permissão de notificações.
+
 ## Histórico das últimas 10 viagens
 
 Na tela principal, **Últimas 10 viagens (Uber e 99)** abre a lista das solicitações recebidas. Cada item mostra o app de origem (Uber ou 99), o horário, o R$/km, o valor, o tempo (até o passageiro + viagem), a distância e os endereços de embarque e destino, com um botão para abrir cada endereço no app de mapas do celular. O histórico fica só no aparelho, e "Limpar histórico" apaga tudo.

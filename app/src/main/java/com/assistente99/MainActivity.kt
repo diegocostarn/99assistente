@@ -25,6 +25,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pkgField: EditText
     private lateinit var pickupCheck: CheckBox
     private lateinit var debugCheck: CheckBox
+    private lateinit var ocrWideCheck: CheckBox
+    private lateinit var notifyCheck: CheckBox
     private lateinit var ocrStatus: TextView
 
     private val captureLauncher = registerForActivityResult(
@@ -45,6 +47,20 @@ class MainActivity : AppCompatActivity() {
     private val notificationLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { launchCapturePrompt() }
+
+    // Só pede a permissão de notificações (Android 13+) para a notificação da última corrida.
+    private val notifyPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { }
+
+    private fun askNotificationPermissionIfNeeded() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            notifyPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     private fun startOcr() {
         // A notificação do serviço de captura precisa da permissão de notificações no Android 13+.
@@ -137,6 +153,20 @@ class MainActivity : AppCompatActivity() {
         }
         col.addView(debugCheck)
 
+        ocrWideCheck = CheckBox(this).apply {
+            text = "Ler por imagem também quando a tela tiver texto (ajuda na 99; gasta mais bateria)"
+            isChecked = prefs.ocrWhenText
+        }
+        col.addView(ocrWideCheck)
+
+        notifyCheck = CheckBox(this).apply {
+            text = "Mostrar a última corrida na barra de notificações (silenciosa, com botões de mapa)"
+            isChecked = prefs.notifyLastRide
+            setOnCheckedChangeListener { _, checked -> if (checked) askNotificationPermissionIfNeeded() }
+        }
+        col.addView(notifyCheck)
+        if (prefs.notifyLastRide) askNotificationPermissionIfNeeded()
+
         col.addView(TextView(this).apply {
             text = "Leitura por captura de tela (OCR): necessária para o card de solicitação da Uber, " +
                 "que o app não entrega como texto. Tudo é processado no aparelho, nada é salvo nem enviado."
@@ -194,6 +224,9 @@ class MainActivity : AppCompatActivity() {
         prefs.costPerKm = parse(costField)
         prefs.includePickup = pickupCheck.isChecked
         prefs.debugMode = debugCheck.isChecked
+        prefs.ocrWhenText = ocrWideCheck.isChecked
+        prefs.notifyLastRide = notifyCheck.isChecked
+        if (!notifyCheck.isChecked) RideNotifier.cancel(this)
         prefs.packagesText = pkgField.text.toString().ifBlank { Prefs.DEFAULT_PACKAGES }
         Toast.makeText(this, "Salvo", Toast.LENGTH_SHORT).show()
     }
