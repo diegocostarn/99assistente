@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Assistente 99</string>
-    <string name="accessibility_description">Lê a tela dos apps 99 Motorista e Uber Motorista para calcular o valor por km de cada solicitação e mostrar o resultado sobre a tela. Nenhum dado sai do aparelho.</string>
-</resources>
