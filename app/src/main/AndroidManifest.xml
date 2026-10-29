@@ -20,6 +20,10 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".RideLogActivity"
+            android:exported="false" />
+
         <service
             android:name=".RideAccessibilityService"
             android:exported="false"

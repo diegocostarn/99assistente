@@ -34,6 +34,12 @@ O card de solicitação da Uber não expõe o texto ao serviço de acessibilidad
 
 O texto lido por OCR aparece em **Ver o que o app leu da tela**, na seção "LEITURA POR OCR".
 
+## Histórico das últimas 10 viagens
+
+Na tela principal, **Últimas 10 viagens (Uber e 99)** abre a lista das solicitações recebidas. Cada item mostra o app de origem (Uber ou 99), o horário, o R$/km, o valor, o tempo (até o passageiro + viagem), a distância e os endereços de embarque e destino, com um botão para abrir cada endereço no app de mapas do celular. O histórico fica só no aparelho, e "Limpar histórico" apaga tudo.
+
+Os endereços são lidos pela posição no card (o que vem depois do 1º "N min (X km)" é o embarque; depois do 2º é o destino). Isso foi ajustado para o card da Uber. Na 99 o endereço pode aparecer como "não lido" até eu ver o texto real do card dela.
+
 ## Ajuste importante: o parser é heurístico
 
 O layout do app da 99 não é público e muda. O parser assume:

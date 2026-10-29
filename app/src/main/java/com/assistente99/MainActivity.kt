@@ -93,6 +93,11 @@ class MainActivity : AppCompatActivity() {
         col.addView(status)
 
         col.addView(Button(this).apply {
+            text = "Últimas 10 viagens (Uber e 99)"
+            setOnClickListener { startActivity(Intent(this@MainActivity, RideLogActivity::class.java)) }
+        })
+
+        col.addView(Button(this).apply {
             text = "1) Ativar o serviço de acessibilidade"
             setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         })

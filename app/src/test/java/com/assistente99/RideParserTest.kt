@@ -156,6 +156,44 @@ class RideParserTest {
     }
 
     @Test
+    fun extractsAddressesFromRealOcrCard1() {
+        // Card real lido por OCR: o OCR trouxe "Parnamirim" antes do resto do endereço de destino.
+        val ride = RideParser.parseOcr(
+            listOf(
+                ":X", "Arig", "ni", "BR-1", "Po UDU", "2 UberX", "R$ 12,70", "Est. de R$1,15/km",
+                "\u2605 4,92 (2000)", "9 +R$ l,00 inclu\u00eddo", "8 min (2.9 km)", "Verificado",
+                "Rua Rio Curu\u00e1, Pitimbu, Natal", "h 12 minutos (8.l km)", "Parnamirim",
+                "Aeroporto Augusto Severo, S/N, Ema\u00fas,", "X", "Tenho interesse", "Pa"
+            )
+        )!!
+        assertEquals("Rua Rio Curu\u00e1, Pitimbu, Natal", ride.pickupAddress)
+        assertEquals("Aeroporto Augusto Severo, S/N, Ema\u00fas, Parnamirim", ride.dropoffAddress)
+    }
+
+    @Test
+    fun extractsAddressesFromRecordedCard() {
+        val ride = RideParser.parseOcr(
+            listOf(
+                "UberX", "Exclusivo", "R$ 41,74", "Est. de R$1,16/km", "4,75 (117)",
+                "20 min (12.5 km)", "R. Duque de Caxias, Bela Parnamirim, Macaiba",
+                "32 minutos (23.5 km)", "Av. Gov. Rafael Fernandes, 801, Alecrim, Natal",
+                "Viagem longa (mais de 30 min)", "Aceitar"
+            )
+        )!!
+        assertEquals("R. Duque de Caxias, Bela Parnamirim, Macaiba", ride.pickupAddress)
+        assertEquals("Av. Gov. Rafael Fernandes, 801, Alecrim, Natal", ride.dropoffAddress)
+        assertEquals(20, ride.pickupMin)
+        assertEquals(32, ride.tripMin)
+    }
+
+    @Test
+    fun noAddressesWhenCardHasNone() {
+        val ride = RideParser.parse(listOf("R$ 9,00", "5 min (1.0 km)", "10 minutos (3.0 km)"))!!
+        assertNull(ride.pickupAddress)
+        assertNull(ride.dropoffAddress)
+    }
+
+    @Test
     fun ocrFixDoesNotTouchWordsOrCleanNumbers() {
         val ride = RideParser.parseOcr(listOf("R$ 10,00", "Il Lugar Olho", "5 min (2.0 km)", "10 minutos (4.5 km)"))!!
         assertEquals(2.0, ride.pickupKm!!, 0.001)

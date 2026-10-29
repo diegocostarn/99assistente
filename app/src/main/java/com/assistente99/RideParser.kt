@@ -10,7 +10,11 @@ data class RideInfo(
     val pickupMin: Int?,
     val tripMin: Int?,
     /** "Est. de R$ X/km" que a própria Uber mostra no card (usado só para conferir a leitura do OCR). */
-    val estPerKm: Double? = null
+    val estPerKm: Double? = null,
+    /** Endereço de embarque (lido do card, quando o app mostra). */
+    val pickupAddress: String? = null,
+    /** Endereço de destino (lido do card, quando o app mostra). */
+    val dropoffAddress: String? = null
 ) {
     /** Km total considerado no cálculo. */
     fun totalKm(includePickup: Boolean): Double {
@@ -112,6 +116,7 @@ object RideParser {
         val price = findPrice(texts) ?: return null
         val joined = texts.joinToString(" | ")
         val est = estPerKmRegex.find(joined)?.groupValues?.get(1)?.let { parseBrNumber(it) }
+        val addresses = extractAddresses(texts)
 
         val pairs = pairRegex.findAll(joined).mapNotNull { m ->
             val min = m.groupValues[1].toIntOrNull() ?: return@mapNotNull null
@@ -121,9 +126,9 @@ object RideParser {
 
         if (pairs.isNotEmpty()) {
             return if (pairs.size >= 2) {
-                RideInfo(price, pairs[0].second, pairs[1].second, pairs[0].first, pairs[1].first, est)
+                RideInfo(price, pairs[0].second, pairs[1].second, pairs[0].first, pairs[1].first, est, addresses.first, addresses.second)
             } else {
-                RideInfo(price, null, pairs[0].second, null, pairs[0].first, est)
+                RideInfo(price, null, pairs[0].second, null, pairs[0].first, est, null, addresses.second)
             }
         }
 
@@ -171,6 +176,57 @@ object RideParser {
             priceRegex.find(t)?.let { return parseBrNumber(it.groupValues[1]) }
         }
         return null
+    }
+
+    // Linhas que não fazem parte de um endereço, mas aparecem entre os blocos do card.
+    private val skipWords = listOf("verificado", "priority", "exclusivo", "incluíd", "est. de", "radar de viagens")
+    private val endWords = listOf("tenho interesse", "aceitar", "viagem longa", "selecionar", "recusar", "ver detalhes")
+    private val ratingRegex = Regex("""^\S{0,2}\s*\d[.,]\d{1,2}\s*\(\d+\)""")
+
+    /**
+     * Endereços do card, pela posição: o que vem depois do 1º "N min (X km)" é o embarque,
+     * e o que vem depois do 2º é o destino (até "Tenho interesse"/"Aceitar").
+     * Devolve (embarque, destino); com um único par, só o destino.
+     */
+    private fun extractAddresses(texts: List<String>): Pair<String?, String?> {
+        val idx = texts.indices.filter { pairRegex.containsMatchIn(texts[it]) }
+        if (idx.isEmpty()) return null to null
+
+        fun isJunk(t: String): Boolean {
+            val l = t.lowercase()
+            return t.trim().length < 4 || '★' in t || ratingRegex.containsMatchIn(t.trim()) || skipWords.any { it in l }
+        }
+
+        fun clean(lines: List<String>): String? {
+            val parts = lines.map { it.trim() }.filter { it.isNotEmpty() && !isJunk(it) }
+            if (parts.isEmpty()) return null
+            val ordered = if (parts.size >= 2 && !parts[0].contains(',') && parts.drop(1).any { it.contains(',') }) {
+                // O OCR às vezes devolve a cidade ("Parnamirim") antes do resto do endereço.
+                parts.drop(1) + parts[0]
+            } else {
+                parts
+            }
+            val text = ordered.joinToString(" ").replace(Regex("""\s+"""), " ").trim().trimEnd(',', ' ')
+            return text.ifBlank { null }
+        }
+
+        fun after(from: Int): List<String> {
+            val out = ArrayList<String>()
+            for (j in from + 1 until texts.size) {
+                val l = texts[j].lowercase()
+                if (endWords.any { it in l }) break
+                out += texts[j]
+                if (out.size >= 4) break
+            }
+            return out
+        }
+
+        return if (idx.size >= 2) {
+            val pickup = clean(texts.subList(idx[0] + 1, idx[1]).take(4))
+            pickup to clean(after(idx[1]))
+        } else {
+            null to clean(after(idx[0]))
+        }
     }
 
     private fun normalize(s: String): String =

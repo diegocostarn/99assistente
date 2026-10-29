@@ -17,6 +17,9 @@ object OcrState {
     /** Última vez que um app monitorado mostrou uma tela sem texto legível. */
     @Volatile var lastSparseAt = 0L
 
+    /** Pacote do app que mostrou a última tela sem texto (para registrar de qual app veio a corrida). */
+    @Volatile var lastSparsePkg = ""
+
     /** Última vez que o serviço de acessibilidade reconheceu uma corrida sozinho. */
     @Volatile var lastAccessibilityRideAt = 0L
 

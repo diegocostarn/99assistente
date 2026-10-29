@@ -22,6 +22,7 @@ class RideAccessibilityService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var prefs: Prefs
     private lateinit var overlay: OverlayView
+    private val rideLog by lazy { RideLog(this) }
 
     private var lastDump = ""
     private var lastSavedAt = 0L
@@ -50,6 +51,7 @@ class RideAccessibilityService : AccessibilityService() {
         handler.post {
             handler.removeCallbacks(hideRunnable)
             overlay.show(ride, prefs)
+            rideLog.record(RideLog.sourceLabel(OcrState.lastSparsePkg), ride, prefs.includePickup)
         }
     }
 
@@ -163,13 +165,17 @@ class RideAccessibilityService : AccessibilityService() {
         // Tela quase sem texto num app monitorado = card que o app não expõe (caso da Uber).
         // Avisa o serviço de OCR, que lê a imagem da tela no lugar.
         val sparse = texts.size <= SPARSE_MAX_TEXTS
-        if (sparse) OcrState.lastSparseAt = System.currentTimeMillis()
+        if (sparse) {
+            OcrState.lastSparseAt = System.currentTimeMillis()
+            OcrState.lastSparsePkg = pkg
+        }
         if (ride != null) OcrState.lastAccessibilityRideAt = System.currentTimeMillis()
 
         when {
             ride != null -> {
                 handler.removeCallbacks(hideRunnable)
                 overlay.show(ride, prefs)
+                rideLog.record(RideLog.sourceLabel(pkg), ride, prefs.includePickup)
             }
             sparse && OcrState.running -> {
                 // O OCR cuida do card; só evita que um "esconder" pendente apague o que ele mostrou.
