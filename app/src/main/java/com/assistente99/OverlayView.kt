@@ -56,11 +56,20 @@ class OverlayView(private val service: AccessibilityService) {
     private fun relayout() {
         val v = card ?: return
         val lp = cardParams ?: return
-        v.requestLayout()
-        v.post {
-            if (card !== v) return@post
-            try { wm.updateViewLayout(v, lp) } catch (_: Exception) {}
+        val dm = service.resources.displayMetrics
+        val margin = (8 * dm.density).toInt()
+        // Mede o card com o conteúdo novo e dá à janela o tamanho exato, sem depender do Android
+        // recalcular o WRAP_CONTENT (que deixava o card com a largura antiga e cortava o texto).
+        v.measure(
+            View.MeasureSpec.makeMeasureSpec((dm.widthPixels - 2 * margin).coerceAtLeast(1), View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        lp.width = v.measuredWidth
+        lp.height = v.measuredHeight
+        if (lp.gravity and Gravity.HORIZONTAL_GRAVITY_MASK == Gravity.START && lp.x >= 0) {
+            lp.x = lp.x.coerceIn(0, (dm.widthPixels - lp.width).coerceAtLeast(0))
         }
+        try { wm.updateViewLayout(v, lp) } catch (_: Exception) {}
     }
 
     fun hide() {
