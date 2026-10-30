@@ -36,6 +36,24 @@ class RideCardView(context: Context) : LinearLayout(context) {
         orientation = VERTICAL
     }
 
+    // Largura necessária para o texto mais comprido. O Android estava calculando a largura do card
+    // só pelo selo do topo e quebrando/cortando o resto, então a largura mínima é imposta aqui.
+    private var needW = 0
+
+    private fun noteWidth(tv: TextView, text: CharSequence) {
+        val bold = android.graphics.Paint(tv.paint).apply {
+            typeface = Typeface.create(tv.typeface ?: Typeface.DEFAULT, Typeface.BOLD)
+        }
+        // + folga para a sombra do texto e arredondamentos.
+        val w = (bold.measureText(text.toString()) * 1.04f).toInt() + dp(8f)
+        if (w > needW) needW = w
+    }
+
+    private fun applyMinWidth() {
+        val screen = resources.displayMetrics.widthPixels - dp(16f)
+        minimumWidth = (needW + paddingLeft + paddingRight).coerceAtMost(screen)
+    }
+
     private fun pickTheme(prefs: Prefs) {
         dark = when (prefs.cardTheme) {
             1 -> false
@@ -47,6 +65,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
     /** Desenha uma solicitação. [source] é "Uber" ou "99" (define o selo e a cor da borda). */
     fun bind(ride: RideInfo, prefs: Prefs, source: String? = null, good: Boolean = false) {
         removeAllViews()
+        needW = 0
         pickTheme(prefs)
 
         val includePickup = prefs.includePickup
@@ -107,6 +126,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
         if (rows == 0) {
             addLine(if (perKm != null) "R$ ${fmt(perKm)}/km" else "R$ --/km", 30f, true, bandColor(band), prefs)
         }
+        applyMinWidth()
     }
 
     /**
@@ -115,6 +135,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
      */
     fun bindMany(rides: List<RideInfo>, prefs: Prefs, source: String? = null) {
         removeAllViews()
+        needW = 0
         pickTheme(prefs)
         applyFrame(prefs, source)
         addHeader(source, null, prefs)
@@ -135,17 +156,22 @@ class RideCardView(context: Context) : LinearLayout(context) {
                 setTextColor(INK)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f * prefs.cardScale)
                 setPadding(0, dp(3f * prefs.cardScale), 0, dp(3f * prefs.cardScale))
+                maxLines = 1
+                noteWidth(this, span)
             })
         }
+        applyMinWidth()
     }
 
     /** Card de diagnóstico: leitura de tela sem corrida reconhecida. */
     fun bindDebug(message: String, prefs: Prefs) {
         removeAllViews()
+        needW = 0
+        minimumWidth = 0
         pickTheme(prefs)
         applyFrame(prefs, null)
         addLine("Diagnóstico", 20f, true, INK, prefs)
-        addLine(message, 14f, false, MUTED, prefs)
+        addLine(message, 14f, false, MUTED, prefs, wrap = true)
     }
 
     // ---------- Peças ----------
@@ -239,13 +265,18 @@ class RideCardView(context: Context) : LinearLayout(context) {
         tv.setShadowLayer(dp(4f).toFloat(), 0f, dp(1f).toFloat(), glow)
     }
 
-    private fun addLine(text: String, sizeSp: Float, bold: Boolean, color: Int, prefs: Prefs) {
+    private fun addLine(text: String, sizeSp: Float, bold: Boolean, color: Int, prefs: Prefs, wrap: Boolean = false) {
         addView(TextView(context).apply {
             this.text = text
             legible(this)
             setTextColor(color)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp * prefs.cardScale)
             if (bold) setTypeface(typeface, Typeface.BOLD)
+            if (!wrap) {
+                // Uma linha só: nunca quebra o "R$ 1,83/km" em dois.
+                maxLines = 1
+                noteWidth(this, text)
+            }
         })
     }
 
