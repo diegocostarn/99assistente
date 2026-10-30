@@ -376,4 +376,20 @@ class RideParserTest {
         // Sem o km até o passageiro, não dá para garantir.
         assertEquals(false, GoodAlert.isGood(RideInfo(12.70, null, 4.0, null, 8), 2.0, 1.5, true))
     }
+
+    @Test
+    fun bonusLineIsNotANewRide() {
+        // 99: a linha "R$1,52 Tarifa base dinâmica incl." fica entre os dois pares e não é outra corrida.
+        val lines = listOf(
+            "Pgto. no app", "R$6,90", "R$3,14/km", "0% de Taxa99 semanal", "t 4,73 22 corridas",
+            "O3 min (339 m)", "41,1x", "9 R$1,52 Tarifa base dinâmica incl.", "R$1,52 Tarifa base dinâmica incl.",
+            "4 min (1,9 km)", "BurnFit, Rua Oiti, 20 - Pitimbú", "Perfil Essencial",
+            "Condomínio Vereda do Sol, Cond Vereda", "Do Sol - R. da Saudade, 207"
+        )
+        val rides = RideParser.parseOcrAll(lines)
+        assertEquals(1, rides.size)
+        assertEquals(0.339, rides[0].pickupKm!!, 0.001)
+        assertEquals(1.9, rides[0].tripKm!!, 0.001)
+        assertEquals(6.90, rides[0].price, 0.001)
+    }
 }

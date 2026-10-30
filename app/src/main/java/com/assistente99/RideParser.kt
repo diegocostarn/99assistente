@@ -74,6 +74,21 @@ object RideParser {
         RegexOption.IGNORE_CASE
     )
 
+    // Linhas de bônus que também começam com "R$": "R$1,52 Tarifa base dinâmica incl.",
+    // "R$1,14 por deslocamento incl.". Não são o preço de uma nova corrida.
+    private val bonusWords = listOf("tarifa", "incl", "deslocamento", "recompensa", "bônus", "bonus", "adicional")
+
+    private fun isBonusText(s: String): Boolean {
+        val l = s.lowercase()
+        return bonusWords.any { it in l }
+    }
+
+    /** Linha que começa o preço de uma corrida (e não é uma linha de bônus). */
+    private fun isRideStart(t: String): Boolean {
+        val line = t.trim()
+        return priceStartRegex.containsMatchIn(line) && !isBonusText(line)
+    }
+
     private val distRegex = Regex("""(\d+(?:[.,]\d+)?)\s*(km|m)\b""", RegexOption.IGNORE_CASE)
 
     // Aceita "4 min" (99) e "4 minutos" (Uber).
@@ -297,7 +312,7 @@ object RideParser {
             for (j in from + 1 until texts.size) {
                 val l = texts[j].lowercase()
                 if (endWords.any { it in l }) break
-                if (priceStartRegex.containsMatchIn(texts[j].trim())) break // começou outra corrida
+                if (isRideStart(texts[j])) break // começou outra corrida
                 out += texts[j]
                 if (out.size >= 4) break
             }
@@ -321,7 +336,7 @@ object RideParser {
      */
     fun parseAll(rawTexts: List<String>): List<RideInfo> {
         val texts = rawTexts.map { normalize(it) }
-        val starts = texts.indices.filter { priceStartRegex.containsMatchIn(texts[it].trim()) }
+        val starts = texts.indices.filter { isRideStart(texts[it]) }
         if (starts.size < 2) splitMerged(texts)?.let { return it }
         if (starts.size >= 2) {
             val segments = starts.indices.map { n ->
@@ -343,7 +358,9 @@ object RideParser {
 
     private fun splitMerged(texts: List<String>): List<RideInfo>? {
         val all = texts.joinToString("\n")
-        val cuts = priceInTextRegex.findAll(all).map { it.range.first }.toList()
+        val cuts = priceInTextRegex.findAll(all)
+            .filter { !isBonusText(all.substring(it.range.last + 1, minOf(all.length, it.range.last + 1 + 30)).substringBefore('\n')) }
+            .map { it.range.first }.toList()
         if (cuts.size < 2) return null
         val pairStart = Regex("""(?<![\d(.,])\(?\s*(?=\d+\s*min(?:utos?)?\s*\(?\s*\d+(?:[.,]\d+)?\s*(?:km|m)\b)""", RegexOption.IGNORE_CASE)
         val segments = cuts.indices.map { n ->
