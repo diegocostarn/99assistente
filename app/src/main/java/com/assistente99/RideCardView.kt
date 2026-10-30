@@ -146,12 +146,13 @@ class RideCardView(context: Context) : LinearLayout(context) {
         if (source != null) {
             row.addView(pill(source.uppercase(Locale.ROOT), brandColor(source), Color.WHITE, 13f, prefs))
         }
-        row.addView(View(context), LayoutParams(0, 1, 1f))
         if (band != null && band >= 0) {
             val label = when (band) { 2 -> "BOA"; 1 -> "MÉDIA"; else -> "BAIXA" }
-            row.addView(pill(label, bandColor(band), Color.WHITE, 12f, prefs))
+            row.addView(pill(label, bandColor(band), Color.WHITE, 12f, prefs), LayoutParams(
+                LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT
+            ).apply { if (source != null) marginStart = dp(8f * s) })
         }
-        addView(row, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+        addView(row, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
             bottomMargin = dp(4f * s)
         })
     }

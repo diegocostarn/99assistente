@@ -30,7 +30,6 @@ class CardSettingsActivity : AppCompatActivity() {
     // Exemplo com os números de um card real da Uber (R$ 12,70, 2,9 km + 8,1 km, 8 + 12 min).
     private val sample = RideInfo(12.70, 2.9, 8.1, 8, 12, 1.15)
 
-    private val positionButtons = ArrayList<Button>()
     private lateinit var positionLabel: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,7 +59,6 @@ class CardSettingsActivity : AppCompatActivity() {
 
     private fun build() {
         content.removeAllViews()
-        positionButtons.clear()
 
         // ---- Prévia ----
         content.addView(label("Prévia (como o card aparece sobre a Uber/99)"))
@@ -134,34 +132,16 @@ class CardSettingsActivity : AppCompatActivity() {
         })
         positionLabel = TextView(this).apply { textSize = 14f }
         content.addView(positionLabel)
-        content.addView(TextView(this).apply {
-            text = "Ou escolha um ponto fixo:"
-            textSize = 13f
-            setPadding(0, dp(6), 0, 0)
-        })
-        // Ordem visual da grade 3x3 -> índice salvo (ver RideCardView.POSITION_NAMES).
-        val grid = listOf(listOf(1, 0, 2), listOf(4, 3, 5), listOf(7, 6, 8))
-        val arrows = mapOf(1 to "↖", 0 to "↑", 2 to "↗", 4 to "←", 3 to "●", 5 to "→", 7 to "↙", 6 to "↓", 8 to "↘")
-        for (row in grid) {
-            val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            for (index in row) {
-                val b = Button(this).apply {
-                    tag = index
-                    text = arrows[index]
-                    textSize = 20f
-                    setOnClickListener {
-                        prefs.cardPosition = index
-                        prefs.cardX = -1
-                        prefs.cardY = -1
-                        refreshPositionButtons()
-                    }
-                }
-                positionButtons += b
-                line.addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        content.addView(Button(this).apply {
+            text = "Voltar à posição padrão (topo)"
+            transformationMethod = null
+            setOnClickListener {
+                prefs.cardPosition = 0
+                prefs.cardX = -1
+                prefs.cardY = -1
+                refreshPositionButtons()
             }
-            content.addView(line)
-        }
-        refreshPositionButtons()
+        })
         content.addView(TextView(this).apply {
             text = "Dica: na Uber o app lê a imagem da tela, e o que o card cobrir não é lido. " +
                 "Deixe o card onde ele não tape o valor e os km da solicitação (topo ou uma borda, " +
@@ -216,14 +196,8 @@ class CardSettingsActivity : AppCompatActivity() {
     }
 
     private fun refreshPositionButtons() {
-        val selected = prefs.cardPosition
         val custom = prefs.cardX >= 0 && prefs.cardY >= 0
-        for (b in positionButtons) {
-            val index = b.tag as Int
-            b.alpha = if (!custom && index == selected) 1f else 0.45f
-        }
-        positionLabel.text = if (custom) "Posição: livre (a que você arrastou)"
-        else "Posição: ${RideCardView.POSITION_NAMES[selected]}"
+        positionLabel.text = if (custom) "Posição: livre (a que você arrastou)" else "Posição: padrão (topo da tela)"
     }
 
     private fun label(text: String) = TextView(this).apply {

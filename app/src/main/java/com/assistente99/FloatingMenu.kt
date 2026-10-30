@@ -32,6 +32,8 @@ class FloatingMenu(
     private var root: LinearLayout? = null
     private var panel: LinearLayout? = null
     private var params: WindowManager.LayoutParams? = null
+    private var restoreX = -1
+    private var restoreY = -1
 
     val isShown: Boolean get() = root != null
 
@@ -89,6 +91,7 @@ class FloatingMenu(
                     val dy = e.rawY - downY
                     if (moved || abs(dx) > dp(6) || abs(dy) > dp(6)) {
                         moved = true
+                        restoreX = -1
                         lp.x = (startX + dx).toInt().coerceIn(0, screen.widthPixels - dp(50))
                         lp.y = (startY + dy).toInt().coerceIn(0, screen.heightPixels - dp(50))
                         update()
@@ -128,21 +131,33 @@ class FloatingMenu(
         val p = panel ?: return
         if (p.visibility == View.VISIBLE) closePanel() else {
             p.visibility = View.VISIBLE
-            // Se a janelinha não couber embaixo do botão, sobe o conjunto para caber.
+            // Se a janelinha não couber na tela (botão perto da borda), move o conjunto para caber
+            // e, ao fechar, o botão volta para onde estava.
             root?.post {
                 val lp = params ?: return@post
-                val screenH = service.resources.displayMetrics.heightPixels
+                val dm = service.resources.displayMetrics
+                val w = root?.width ?: return@post
                 val h = root?.height ?: return@post
-                if (lp.y + h > screenH) {
-                    lp.y = (screenH - h - dp(8)).coerceAtLeast(0)
-                    update()
-                }
+                restoreX = lp.x
+                restoreY = lp.y
+                if (lp.x + w > dm.widthPixels) lp.x = (dm.widthPixels - w - dp(8)).coerceAtLeast(0)
+                if (lp.y + h > dm.heightPixels) lp.y = (dm.heightPixels - h - dp(8)).coerceAtLeast(0)
+                if (lp.x != restoreX || lp.y != restoreY) update()
             }
         }
     }
 
     private fun closePanel() {
-        panel?.visibility = View.GONE
+        if (panel?.visibility == View.VISIBLE) {
+            panel?.visibility = View.GONE
+            val lp = params
+            if (lp != null && restoreX >= 0) {
+                lp.x = restoreX
+                lp.y = restoreY
+                restoreX = -1
+                update()
+            }
+        }
     }
 
     private fun buildPanel(): LinearLayout {
