@@ -193,7 +193,9 @@ class ScreenCaptureService : Service() {
         }
 
         // Ignora o topo, onde fica o card do Assistente 99 (evita ler a si mesmo).
-        val top = (height * IGNORE_TOP_FRACTION).toInt()
+        // Na 99 a lista de solicitações começa logo abaixo do título, então ignora só a barra de status.
+        val fraction = if (OcrState.lastSparsePkg == "com.app99.driver") IGNORE_TOP_99 else IGNORE_TOP_FRACTION
+        val top = (height * fraction).toInt()
         val cropped = Bitmap.createBitmap(full, 0, top, width, height - top)
         full.recycle()
 
@@ -306,5 +308,6 @@ class ScreenCaptureService : Service() {
 
         /** Fração do topo da tela ignorada (o card do Assistente 99 aparece ali). */
         private const val IGNORE_TOP_FRACTION = 0.36f
+        private const val IGNORE_TOP_99 = 0.08f
     }
 }

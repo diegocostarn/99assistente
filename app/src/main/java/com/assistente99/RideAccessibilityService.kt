@@ -43,15 +43,28 @@ class RideAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         prefs = Prefs(this)
         overlay = OverlayView(this)
+        floating = FloatingMenu(this, prefs) { handler.post { overlay.hide() } }
         instance = this
+        refreshFloating()
+    }
+
+    private var floating: FloatingMenu? = null
+
+    /** Mostra ou esconde o botão flutuante conforme a opção da tela principal. */
+    fun refreshFloating() {
+        handler.post {
+            val f = floating ?: return@post
+            if (prefs.floatingButton) f.show() else f.hide()
+        }
     }
 
     /** Chamado pelo serviço de captura (OCR) quando ele reconhece uma corrida na imagem. */
     fun showRideFromOcr(ride: RideInfo) {
         handler.post {
             handler.removeCallbacks(hideRunnable)
-            overlay.show(ride, prefs)
-            rideLog.record(RideLog.sourceLabel(OcrState.lastSparsePkg), ride, prefs.includePickup)
+            val source = RideLog.sourceLabel(OcrState.lastSparsePkg)
+            overlay.show(ride, prefs, source)
+            rideLog.record(source, ride, prefs.includePickup)
         }
     }
 
@@ -59,8 +72,16 @@ class RideAccessibilityService : AccessibilityService() {
     fun previewOverlay() {
         handler.post {
             handler.removeCallbacks(hideRunnable)
-            overlay.show(SAMPLE_RIDE, prefs)
+            overlay.show(SAMPLE_RIDE, prefs, "Uber")
             handler.postDelayed(hideRunnable, 6000)
+        }
+    }
+
+    /** Posicionamento livre: mostra o card de exemplo para arrastar e salvar. */
+    fun startPositioning() {
+        handler.post {
+            handler.removeCallbacks(hideRunnable)
+            overlay.startEdit(SAMPLE_RIDE, "Uber")
         }
     }
 
@@ -72,8 +93,8 @@ class RideAccessibilityService : AccessibilityService() {
         if (rides.isEmpty()) return
         handler.post {
             handler.removeCallbacks(hideRunnable)
-            if (rides.size > 1) overlay.showMany(rides, prefs) else overlay.show(rides[0], prefs)
             val source = RideLog.sourceLabel(OcrState.lastSparsePkg)
+            if (rides.size > 1) overlay.showMany(rides, prefs, source) else overlay.show(rides[0], prefs, source)
             for (r in rides) rideLog.record(source, r, prefs.includePickup)
         }
     }
@@ -206,7 +227,8 @@ class RideAccessibilityService : AccessibilityService() {
         when {
             ride != null -> {
                 handler.removeCallbacks(hideRunnable)
-                if (rides.size > 1) overlay.showMany(rides, prefs) else overlay.show(ride, prefs)
+                val source = RideLog.sourceLabel(pkg)
+                if (rides.size > 1) overlay.showMany(rides, prefs, source) else overlay.show(ride, prefs, source)
                 for (r in rides) rideLog.record(RideLog.sourceLabel(pkg), r, prefs.includePickup)
             }
             (sparse || unparsedWide) && OcrState.running -> {
@@ -296,6 +318,7 @@ class RideAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         if (::overlay.isInitialized) overlay.hide()
+        floating?.hide()
         if (instance === this) instance = null
         super.onDestroy()
     }

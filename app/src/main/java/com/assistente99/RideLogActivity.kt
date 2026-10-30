@@ -34,7 +34,7 @@ class RideLogActivity : AppCompatActivity() {
             setPadding(dp(12), dp(12), dp(12), dp(12))
         }
         setContentView(ScrollView(this).apply {
-            setBackgroundColor(0xFFF2F4F7.toInt())
+            setBackgroundColor(Pal.bg(this@RideLogActivity))
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             )
@@ -88,11 +88,12 @@ class RideLogActivity : AppCompatActivity() {
         val good = prefs.goodPerKm
         val min = prefs.minPerKm
         val perKm = e.perKm
+        val dark = Pal.dark(this)
         val accent = when {
-            perKm == null -> Color.parseColor("#555555")
-            perKm >= good -> Color.parseColor("#137A3A")
-            perKm >= min -> Color.parseColor("#B7791F")
-            else -> Color.parseColor("#B3261E")
+            perKm == null -> Pal.muted(this)
+            perKm >= good -> Color.parseColor(if (dark) "#4CD07D" else "#137A3A")
+            perKm >= min -> Color.parseColor(if (dark) "#F2B84B" else "#B7791F")
+            else -> Color.parseColor(if (dark) "#FF6B63" else "#B3261E")
         }
 
         val card = LinearLayout(this).apply {

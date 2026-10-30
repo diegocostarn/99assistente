@@ -55,6 +55,21 @@ object RideParser {
 
     private val priceRegex = Regex("""R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+(?:,\d{1,2})?)""")
     private val priceOnlyRegex = Regex("""^R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+(?:,\d{1,2})?)$""")
+
+    // Linha que COMEÇA com o preço, mesmo que venha mais coisa depois na mesma linha
+    // ("R$24,60 100% dos ganhos", ou "R$7,10 100% dos ganhos R$1,36/km" quando o OCR junta tudo).
+    // Não vale "R$1,36/km" (estimativa por km), nem "+R$ ..." (bônus).
+    private val priceStartRegex = Regex(
+        """^R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+(?:,\d{1,2})?)(?![\d.,]|\s*/\s*km)""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // O mesmo, mas em qualquer ponto de um texto grande (quando a tela entrega tudo num bloco só).
+    private val priceInTextRegex = Regex(
+        """(?<![+\d])R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+(?:,\d{1,2})?)(?![\d.,]|\s*/\s*km)""",
+        RegexOption.IGNORE_CASE
+    )
+
     private val distRegex = Regex("""(\d+(?:[.,]\d+)?)\s*(km|m)\b""", RegexOption.IGNORE_CASE)
 
     // Aceita "4 min" (99) e "4 minutos" (Uber).
@@ -171,6 +186,9 @@ object RideParser {
             priceOnlyRegex.find(t.trim())?.let { return parseBrNumber(it.groupValues[1]) }
         }
         for (t in texts) {
+            priceStartRegex.find(t.trim())?.let { return parseBrNumber(it.groupValues[1]) }
+        }
+        for (t in texts) {
             val lower = t.lowercase()
             if ("/km" in lower || "incluíd" in lower || "est." in lower || t.trimStart().startsWith("+")) continue
             priceRegex.find(t)?.let { return parseBrNumber(it.groupValues[1]) }
@@ -231,7 +249,7 @@ object RideParser {
             for (j in from + 1 until texts.size) {
                 val l = texts[j].lowercase()
                 if (endWords.any { it in l }) break
-                if (priceOnlyRegex.containsMatchIn(texts[j].trim())) break // começou outra corrida
+                if (priceStartRegex.containsMatchIn(texts[j].trim())) break // começou outra corrida
                 out += texts[j]
                 if (out.size >= 4) break
             }
@@ -255,7 +273,8 @@ object RideParser {
      */
     fun parseAll(rawTexts: List<String>): List<RideInfo> {
         val texts = rawTexts.map { normalize(it) }
-        val starts = texts.indices.filter { priceOnlyRegex.containsMatchIn(texts[it].trim()) }
+        val starts = texts.indices.filter { priceStartRegex.containsMatchIn(texts[it].trim()) }
+        if (starts.size < 2) splitMerged(texts)?.let { return it }
         if (starts.size >= 2) {
             val segments = starts.indices.map { n ->
                 texts.subList(starts[n], if (n + 1 < starts.size) starts[n + 1] else texts.size)
@@ -265,6 +284,28 @@ object RideParser {
             }
         }
         return listOfNotNull(parse(rawTexts))
+    }
+
+    /**
+     * Quando a tela entrega várias corridas num bloco de texto só (sem uma linha por elemento),
+     * separa pelo preço e quebra a linha antes de cada "N min (X km)", para achar os endereços.
+     * Devolve null se não achar pelo menos 2 corridas com os dois pares "min (km)".
+     */
+    private val endMergedRegex = Regex("""escolher|tenho interesse|aceitar|selecionar|isso é tudo""", RegexOption.IGNORE_CASE)
+
+    private fun splitMerged(texts: List<String>): List<RideInfo>? {
+        val all = texts.joinToString("\n")
+        val cuts = priceInTextRegex.findAll(all).map { it.range.first }.toList()
+        if (cuts.size < 2) return null
+        val pairStart = Regex("""(?<![\d(.,])\(?\s*(?=\d+\s*min(?:utos?)?\s*\(?\s*\d+(?:[.,]\d+)?\s*(?:km|m)\b)""", RegexOption.IGNORE_CASE)
+        val segments = cuts.indices.map { n ->
+            var chunk = all.substring(cuts[n], if (n + 1 < cuts.size) cuts[n + 1] else all.length)
+            // O destino termina no botão ("Escolher", "Aceitar"...): o resto não é endereço.
+            endMergedRegex.find(chunk)?.let { chunk = chunk.substring(0, it.range.first) }
+            pairStart.replace(chunk) { "\n" + it.value }.split('\n')
+        }
+        if (segments.count { seg -> seg.any { pairRegex.containsMatchIn(it) } } < 2) return null
+        return segments.mapNotNull { parse(it) }.takeIf { it.size >= 2 }
     }
 
     /** [parseAll] com as correções de OCR, sem conferir com a estimativa por km. */

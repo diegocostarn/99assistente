@@ -8,7 +8,37 @@ class Prefs(context: Context) {
 
     /** Apps monitorados: 99 Motorista e Uber Motorista. */
     val packages: Set<String>
-        get() = DEFAULT_PACKAGES.split(',').toSet()
+        get() = buildSet {
+            if (enable99) add("com.app99.driver")
+            if (enableUber) add("com.ubercab.driver")
+        }
+
+    /** Tema do app: 0 automático (do celular), 1 claro, 2 escuro. */
+    var themeMode: Int
+        get() = sp.getInt("theme_mode", 0)
+        set(v) = sp.edit().putInt("theme_mode", v).apply()
+
+    /** Chaves do botão flutuante: ligar/desligar a leitura de cada app. */
+    var enableUber: Boolean
+        get() = sp.getBoolean("enable_uber", true)
+        set(v) = sp.edit().putBoolean("enable_uber", v).apply()
+
+    var enable99: Boolean
+        get() = sp.getBoolean("enable_99", true)
+        set(v) = sp.edit().putBoolean("enable_99", v).apply()
+
+    /** Botão flutuante sobre os outros apps. */
+    var floatingButton: Boolean
+        get() = sp.getBoolean("floating_button", true)
+        set(v) = sp.edit().putBoolean("floating_button", v).apply()
+
+    var floatX: Int
+        get() = sp.getInt("float_x", -1)
+        set(v) = sp.edit().putInt("float_x", v).apply()
+
+    var floatY: Int
+        get() = sp.getInt("float_y", -1)
+        set(v) = sp.edit().putInt("float_y", v).apply()
 
     /** Abaixo disso o card fica vermelho. */
     var minPerKm: Float
@@ -87,15 +117,19 @@ class Prefs(context: Context) {
         get() = sp.getInt("card_alpha", 90).coerceIn(30, 100)
         set(v) = sp.edit().putInt("card_alpha", v.coerceIn(30, 100)).apply()
 
-    /** Fonte: 0 padrão, 1 condensada, 2 serifada, 3 monoespaçada, 4 casual. */
-    var cardFont: Int
-        get() = sp.getInt("card_font", 0)
-        set(v) = sp.edit().putInt("card_font", v).apply()
-
     /** Posição na tela, de 0 a 8 (ver [RideCardView.POSITION_NAMES]). */
     var cardPosition: Int
         get() = sp.getInt("card_position", 0).coerceIn(0, 8)
         set(v) = sp.edit().putInt("card_position", v.coerceIn(0, 8)).apply()
+
+    /** Posição livre do card (pixels, canto superior esquerdo). -1 = usar a posição fixa de [cardPosition]. */
+    var cardX: Int
+        get() = sp.getInt("card_x", -1)
+        set(v) = sp.edit().putInt("card_x", v).apply()
+
+    var cardY: Int
+        get() = sp.getInt("card_y", -1)
+        set(v) = sp.edit().putInt("card_y", v).apply()
 
     var showPerKm: Boolean
         get() = sp.getBoolean("show_per_km", true)
@@ -120,7 +154,7 @@ class Prefs(context: Context) {
     /** Volta a aparência do card ao padrão (não mexe nas faixas de R$/km nem no custo do carro). */
     fun resetCard() {
         sp.edit()
-            .remove("card_scale").remove("card_alpha").remove("card_font").remove("card_position")
+            .remove("card_x").remove("card_y").remove("card_scale").remove("card_alpha").remove("card_position")
             .remove("show_per_km").remove("show_per_hour").remove("show_price")
             .remove("show_km").remove("show_time")
             .apply()

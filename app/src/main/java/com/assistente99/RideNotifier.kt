@@ -116,7 +116,7 @@ object RideNotifier {
             .setContentIntent(openLog)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
-            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setAutoCancel(false)
@@ -146,6 +146,7 @@ object RideNotifier {
             setSound(null, null)
             enableVibration(false)
             setShowBadge(false)
+            lockscreenVisibility = androidx.core.app.NotificationCompat.VISIBILITY_PUBLIC
         }
         nm.createNotificationChannel(channel)
     }

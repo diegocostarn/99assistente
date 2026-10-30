@@ -34,14 +34,21 @@ O card de solicitação da Uber não expõe o texto ao serviço de acessibilidad
 
 O texto lido por OCR aparece em **Ver o que o app leu da tela**, na seção "LEITURA POR OCR".
 
+## Tema claro e escuro
+
+Na tela principal, em Ajustes, **Tema do app**: Automático (segue o celular), Claro ou Escuro. Vale para todas as telas e para a janelinha do botão flutuante.
+
+## O card
+
+Corpo branco com borda **preta na Uber** e **laranja na 99**, selo com o nome do app, R$/km grande na cor da faixa (verde, amarelo, vermelho) e uma etiqueta Boa, Média ou Baixa.
+
 ## Personalizar o card
 
 Na tela principal, **Personalizar o card** permite ajustar, com prévia ao vivo:
 
 - **Tamanho** (60% a 200%) e **opacidade** (30% a 100%);
-- **Fonte** (padrão, condensada, serifada, monoespaçada, casual);
 - **O que mostrar**: R$/km, valor da corrida, distância, R$/h e tempo total;
-- **Posição**: 9 lugares (topo, meio ou base × esquerda, centro ou direita);
+- **Posição livre**: toque em "Posicionar livremente", arraste o card para qualquer ponto da tela (dá para abrir a Uber ou a 99 antes, para ver o lugar real) e toque em "Salvar posição". Também há 9 pontos fixos como atalho;
 - **Testar sobre outros apps**: mostra o card por 6 s para você ver o resultado de verdade.
 
 As mudanças valem já na próxima solicitação. Na leitura por OCR (Uber), o app tapa a área do próprio card na imagem antes de ler, para não ler a si mesmo. Mas isso também esconde da leitura o que estiver embaixo dele: se o card cobrir o valor ou os km da solicitação, a Uber deixa de ser lida. Escolha uma posição que não tape esses dados (topo ou borda) e reduza o tamanho se precisar.
@@ -50,7 +57,17 @@ As mudanças valem já na próxima solicitação. Na leitura por OCR (Uber), o a
 
 - A solicitação única da 99 mostra o R$/km que o próprio app calcula (por exemplo "R$1,53/km"), e esse valor é o preço dividido pelo km até o passageiro somado ao km da viagem. O app usa isso para conferir a leitura por OCR.
 - A tela **Solicitações** da 99 lista várias corridas ao mesmo tempo. O app separa cada uma (cada corrida começa na linha que é só o preço) e mostra um card com uma linha por corrida: R$/km na cor da sua faixa, valor e km. Todas entram no histórico.
+- A lista também é lida quando o preço vem na mesma linha de "100% dos ganhos" e do "R$/km", ou quando a tela entrega tudo num bloco de texto só. Na leitura por imagem da 99, só a barra de status é ignorada (para ler a 1ª corrida da lista).
 - Se a tela da 99 tem algum texto, mas a corrida não é reconhecida, o app também tenta ler por imagem (OCR). Isso gasta mais bateria e pode ser desligado na tela principal em **Ler por imagem também quando a tela tiver texto**. Para funcionar, a captura de tela precisa estar ligada.
+
+## Botão flutuante
+
+Um botão redondo "R$" fica sobre os apps (com o serviço de acessibilidade ativo). Arraste para mudar de lugar. Tocando, abre uma janelinha com:
+
+- **Últimas viagens**: abre o histórico;
+- chaves para **ligar ou desligar a leitura da Uber e da 99** separadamente (desligada, o app ignora aquele app).
+
+Toque fora da janelinha para fechá-la. Para esconder o botão, desligue **Botão flutuante** na tela principal e toque em Salvar. A posição fica guardada.
 
 ## Notificação da última corrida
 

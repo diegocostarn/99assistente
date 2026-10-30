@@ -18,7 +18,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * Personalizar o card: tamanho, fonte, transparência, quais informações aparecem e onde ele fica na tela.
+ * Personalizar o card: tamanho, transparência, quais informações aparecem e onde ele fica na tela.
  * Cada mudança é salva na hora e a prévia no topo atualiza junto.
  */
 class CardSettingsActivity : AppCompatActivity() {
@@ -44,7 +44,7 @@ class CardSettingsActivity : AppCompatActivity() {
             setPadding(dp(16), dp(12), dp(16), dp(24))
         }
         setContentView(ScrollView(this).apply {
-            setBackgroundColor(0xFFF2F4F7.toInt())
+            setBackgroundColor(Pal.bg(this@CardSettingsActivity))
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             )
@@ -101,27 +101,6 @@ class CardSettingsActivity : AppCompatActivity() {
             })
         })
 
-        // ---- Fonte ----
-        content.addView(label("Fonte"))
-        content.addView(Spinner(this).apply {
-            adapter = ArrayAdapter(
-                this@CardSettingsActivity,
-                android.R.layout.simple_spinner_dropdown_item,
-                RideCardView.FONT_NAMES
-            )
-            setSelection(prefs.cardFont.coerceIn(0, RideCardView.FONT_NAMES.size - 1))
-            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
-                    if (prefs.cardFont != pos) {
-                        prefs.cardFont = pos
-                        refreshPreview()
-                    }
-                }
-
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
-            }
-        })
-
         // ---- O que mostrar ----
         content.addView(label("O que mostrar no card"))
         content.addView(check("Valor por km (R$/km)", prefs.showPerKm) { prefs.showPerKm = it })
@@ -132,8 +111,34 @@ class CardSettingsActivity : AppCompatActivity() {
 
         // ---- Posição ----
         content.addView(label("Posição na tela"))
+        content.addView(Button(this).apply {
+            text = "Posicionar livremente (arrastar o card)"
+            transformationMethod = null
+            setOnClickListener {
+                val svc = RideAccessibilityService.instance
+                if (svc == null) {
+                    Toast.makeText(
+                        this@CardSettingsActivity,
+                        "Ative o serviço de acessibilidade primeiro (tela principal).",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    svc.startPositioning()
+                    Toast.makeText(
+                        this@CardSettingsActivity,
+                        "Arraste o card e toque em Salvar posição. Dá para abrir a Uber ou a 99 antes, para ver o lugar real.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        })
         positionLabel = TextView(this).apply { textSize = 14f }
         content.addView(positionLabel)
+        content.addView(TextView(this).apply {
+            text = "Ou escolha um ponto fixo:"
+            textSize = 13f
+            setPadding(0, dp(6), 0, 0)
+        })
         // Ordem visual da grade 3x3 -> índice salvo (ver RideCardView.POSITION_NAMES).
         val grid = listOf(listOf(1, 0, 2), listOf(4, 3, 5), listOf(7, 6, 8))
         val arrows = mapOf(1 to "↖", 0 to "↑", 2 to "↗", 4 to "←", 3 to "●", 5 to "→", 7 to "↙", 6 to "↓", 8 to "↘")
@@ -146,6 +151,8 @@ class CardSettingsActivity : AppCompatActivity() {
                     textSize = 20f
                     setOnClickListener {
                         prefs.cardPosition = index
+                        prefs.cardX = -1
+                        prefs.cardY = -1
                         refreshPositionButtons()
                     }
                 }
@@ -196,20 +203,27 @@ class CardSettingsActivity : AppCompatActivity() {
     private fun refreshPreview() {
         previewHolder.removeAllViews()
         val card = RideCardView(this)
-        card.bind(sample, prefs)
+        card.bind(sample, prefs, "Uber")
         previewHolder.addView(
             card,
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         )
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::positionLabel.isInitialized) refreshPositionButtons()
+    }
+
     private fun refreshPositionButtons() {
         val selected = prefs.cardPosition
+        val custom = prefs.cardX >= 0 && prefs.cardY >= 0
         for (b in positionButtons) {
             val index = b.tag as Int
-            b.alpha = if (index == selected) 1f else 0.45f
+            b.alpha = if (!custom && index == selected) 1f else 0.45f
         }
-        positionLabel.text = "Posição: ${RideCardView.POSITION_NAMES[selected]}"
+        positionLabel.text = if (custom) "Posição: livre (a que você arrastou)"
+        else "Posição: ${RideCardView.POSITION_NAMES[selected]}"
     }
 
     private fun label(text: String) = TextView(this).apply {

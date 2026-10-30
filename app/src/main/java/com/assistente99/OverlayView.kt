@@ -4,8 +4,15 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.LinearLayout
+import android.widget.TextView
 
 /**
  * Janela flutuante com o card, mostrada sobre o app da 99/Uber.
@@ -20,15 +27,17 @@ class OverlayView(private val service: AccessibilityService) {
     private val wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val prefs = Prefs(service)
     private var card: RideCardView? = null
-    private var builtPosition = -1
+    private var builtPosition = ""
+    private var cardParams: WindowManager.LayoutParams? = null
+    private var controls: View? = null
 
-    fun show(ride: RideInfo, prefs: Prefs) {
-        ensureCreated().bind(ride, prefs)
+    fun show(ride: RideInfo, prefs: Prefs, source: String? = null) {
+        ensureCreated().bind(ride, prefs, source)
     }
 
     /** Várias corridas na mesma tela (lista de solicitações): uma linha por corrida. */
-    fun showMany(rides: List<RideInfo>, prefs: Prefs) {
-        ensureCreated().bindMany(rides, prefs)
+    fun showMany(rides: List<RideInfo>, prefs: Prefs, source: String? = null) {
+        ensureCreated().bindMany(rides, prefs, source)
     }
 
     /** Card de diagnóstico: aparece quando há leitura de tela mas nenhuma corrida reconhecida. */
@@ -44,7 +53,110 @@ class OverlayView(private val service: AccessibilityService) {
             }
         }
         card = null
-        builtPosition = -1
+        builtPosition = ""
+        cardParams = null
+        controls?.let {
+            try {
+                wm.removeView(it)
+            } catch (_: Exception) {
+            }
+        }
+        controls = null
+    }
+
+    /**
+     * Modo de posicionamento livre: mostra o card de exemplo, que pode ser arrastado para qualquer lugar,
+     * com os botões "Salvar posição" e "Cancelar". A posição é guardada em pixels.
+     */
+    fun startEdit(ride: RideInfo, source: String? = null) {
+        hide()
+        val v = ensureCreated()
+        v.bind(ride, prefs, source)
+        val lp = cardParams ?: return
+        val dm = service.resources.displayMetrics
+        val density = dm.density
+        fun dp(x: Int) = (x * density).toInt()
+
+        v.post {
+            // Passa para coordenadas absolutas a partir de onde o card está agora.
+            bounds()?.let {
+                lp.gravity = Gravity.TOP or Gravity.START
+                lp.x = it.left
+                lp.y = it.top
+            }
+            lp.flags = lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            try { wm.updateViewLayout(v, lp) } catch (_: Exception) {}
+        }
+
+        var downX = 0f; var downY = 0f; var startX = 0; var startY = 0
+        v.setOnTouchListener { _, e ->
+            when (e.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = e.rawX; downY = e.rawY; startX = lp.x; startY = lp.y
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    lp.x = (startX + e.rawX - downX).toInt()
+                        .coerceIn(0, (dm.widthPixels - v.width).coerceAtLeast(0))
+                    lp.y = (startY + e.rawY - downY).toInt()
+                        .coerceIn(0, (dm.heightPixels - v.height).coerceAtLeast(0))
+                    try { wm.updateViewLayout(v, lp) } catch (_: Exception) {}
+                }
+            }
+            true
+        }
+
+        fun pill(label: String, color: Int, onClick: () -> Unit) = TextView(service).apply {
+            text = label
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(color)
+                cornerRadius = dp(22).toFloat()
+            }
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = dp(6); marginEnd = dp(6) }
+            setOnClickListener { onClick() }
+        }
+
+        val bar = LinearLayout(service).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            addView(TextView(service).apply {
+                text = "Arraste o card até onde quiser"
+                textSize = 13f
+                setTextColor(Color.WHITE)
+                setPadding(dp(12), dp(6), dp(12), dp(6))
+                background = GradientDrawable().apply {
+                    setColor(0xCC000000.toInt()); cornerRadius = dp(14).toFloat()
+                }
+            })
+            addView(LinearLayout(service).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(10), 0, 0)
+                addView(pill("Cancelar", 0xFF6B7280.toInt()) { hide() })
+                addView(pill("✓ Salvar posição", 0xFF16A34A.toInt()) {
+                    prefs.cardX = lp.x
+                    prefs.cardY = lp.y
+                    hide()
+                })
+            })
+        }
+        val barParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = dp(72)
+        }
+        wm.addView(bar, barParams)
+        controls = bar
     }
 
     /**
@@ -62,9 +174,11 @@ class OverlayView(private val service: AccessibilityService) {
 
     private fun ensureCreated(): RideCardView {
         val position = prefs.cardPosition
+        val custom = prefs.cardX >= 0 && prefs.cardY >= 0
+        val key = if (custom) "c${prefs.cardX},${prefs.cardY}" else "p$position"
 
         // Mudou a posição nas configurações: refaz a janela no lugar novo.
-        if (card != null && builtPosition != position) hide()
+        if (card != null && builtPosition != key) hide()
         card?.let { return it }
 
         val density = service.resources.displayMetrics.density
@@ -98,10 +212,28 @@ class OverlayView(private val service: AccessibilityService) {
                 Gravity.BOTTOM -> dp(40)
                 else -> 0
             }
+            if (custom) {
+                gravity = Gravity.TOP or Gravity.START
+                x = prefs.cardX
+                y = prefs.cardY
+            }
         }
         wm.addView(view, params)
+        if (custom) {
+            // Se o card ficou maior (tamanho/fonte) e saiu da tela, puxa de volta.
+            view.post {
+                val dm = service.resources.displayMetrics
+                val nx = params.x.coerceIn(0, (dm.widthPixels - view.width).coerceAtLeast(0))
+                val ny = params.y.coerceIn(0, (dm.heightPixels - view.height).coerceAtLeast(0))
+                if (nx != params.x || ny != params.y) {
+                    params.x = nx; params.y = ny
+                    try { wm.updateViewLayout(view, params) } catch (_: Exception) {}
+                }
+            }
+        }
         card = view
-        builtPosition = position
+        cardParams = params
+        builtPosition = key
         return view
     }
 }

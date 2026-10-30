@@ -36,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ocrWideSwitch: SwitchCompat
     private lateinit var autoSwitch: SwitchCompat
     private lateinit var notifySwitch: SwitchCompat
+    private lateinit var floatSwitch: SwitchCompat
 
     // Evita pedir a captura em loop se o usuário recusar.
     private var autoAsked = false
@@ -186,7 +187,7 @@ class MainActivity : AppCompatActivity() {
         setText(if (value == 0f) "" else value.toString())
         setTextColor(INK)
         textSize = 16f
-        background = round(0xFFF3F4F6.toInt(), 12)
+        background = round(Pal.field(this@MainActivity), 12)
         setPadding(dp(14), dp(10), dp(14), dp(10))
     }
 
@@ -265,6 +266,30 @@ class MainActivity : AppCompatActivity() {
         // Ajustes
         col.addView(sectionTitle("AJUSTES"))
         val set = card()
+        set.addView(text("Tema do app", 13f, MUTED))
+        set.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(6), 0, dp(4))
+            listOf("Automático", "Claro", "Escuro").forEachIndexed { i, name ->
+                addView(Button(this@MainActivity).apply {
+                    text = name
+                    transformationMethod = null
+                    textSize = 14f
+                    stateListAnimator = null
+                    val sel = prefs.themeMode == i
+                    setTextColor(if (sel) Color.WHITE else INK)
+                    background = round(if (sel) ACCENT else Pal.field(this@MainActivity), 12)
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                        if (i > 0) marginStart = dp(8)
+                    }
+                    setOnClickListener {
+                        prefs.themeMode = i
+                        Pal.apply(this@MainActivity)
+                        recreate()
+                    }
+                })
+            }
+        })
         set.addView(fieldLabel("R$/km mínimo aceitável (abaixo disso o card fica vermelho)"))
         minField = numberField(prefs.minPerKm).also { set.addView(it) }
         set.addView(fieldLabel("R$/km considerado bom (a partir daí o card fica verde)"))
@@ -284,6 +309,8 @@ class MainActivity : AppCompatActivity() {
         notifySwitch = switchRow("Última corrida na barra de notificações", "Silenciosa, com botões de mapa", prefs.notifyLastRide)
         notifySwitch.setOnCheckedChangeListener { _, on -> if (on) askNotificationPermissionIfNeeded() }
         set.addView(notifySwitch)
+        floatSwitch = switchRow("Botão flutuante", "Atalho sobre os apps: últimas viagens e ligar/desligar Uber e 99", prefs.floatingButton)
+        set.addView(floatSwitch)
         debugSwitch = switchRow("Modo diagnóstico", "Mostra um card mesmo sem reconhecer a corrida", prefs.debugMode)
         set.addView(debugSwitch)
         col.addView(set)
@@ -345,15 +372,18 @@ class MainActivity : AppCompatActivity() {
         prefs.autoCapture = autoSwitch.isChecked
         prefs.notifyLastRide = notifySwitch.isChecked
         if (!notifySwitch.isChecked) RideNotifier.cancel(this)
+        prefs.floatingButton = floatSwitch.isChecked
+        RideAccessibilityService.instance?.refreshFloating()
         Toast.makeText(this, "Salvo", Toast.LENGTH_SHORT).show()
     }
 
+    private val BG get() = Pal.bg(this)
+    private val CARD get() = Pal.card(this)
+    private val LINE get() = Pal.line(this)
+    private val INK get() = Pal.ink(this)
+    private val MUTED get() = Pal.muted(this)
+
     companion object {
-        private val BG = 0xFFF2F4F7.toInt()
-        private val CARD = 0xFFFFFFFF.toInt()
-        private val LINE = 0xFFE5E7EB.toInt()
-        private val INK = 0xFF111827.toInt()
-        private val MUTED = 0xFF6B7280.toInt()
         private val HEADER = 0xFF0F172A.toInt()
         private val ACCENT = 0xFF16A34A.toInt()
         private val GOOD = 0xFF22C55E.toInt()

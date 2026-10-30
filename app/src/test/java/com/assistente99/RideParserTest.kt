@@ -286,4 +286,50 @@ class RideParserTest {
         assertNull(RideParser.parse(listOf("Você está online", "Buscando corridas")))
         assertNull(RideParser.parse(listOf("R$ 10,00")))
     }
+
+    private val list99Separate = listOf(
+        "R$24,60", "100% dos ganhos", "4,87", "395 corridas", "Cartão verif.",
+        "(3 min 707 m) Condomínio Canto Pássaros, Rua das Algarobas, 1455 - Pitimbú, Natal - RN",
+        "(27 min 20 km) casa do espeto, travessa olimpio maciel, Macaíba - RN", "Escolher",
+        "R$7,10", "100% dos ganho...", "R$1,36/km", "4,95", "531 corridas", "Perfil Essencial",
+        "(4 min 1,5 km) Nova colina, Morada da Paz",
+        "(7 min 3,7 km) IEADERN - Assembleia de Deus em Cidade Satélite, Rua da Gameleira, 2108",
+        "Escolher", "Isso é tudo por enquanto"
+    )
+
+    @Test
+    fun list99WithSeparateNodes() {
+        val rides = RideParser.parseAll(list99Separate)
+        assertEquals(2, rides.size)
+        assertEquals(24.60, rides[0].price, 0.001)
+        assertEquals(0.707, rides[0].pickupKm!!, 0.001)
+        assertEquals(20.0, rides[0].tripKm!!, 0.001)
+        assertEquals(7.10, rides[1].price, 0.001)
+        assertEquals(3.7, rides[1].tripKm!!, 0.001)
+    }
+
+    @Test
+    fun list99WithPriceAndBadgeOnSameLine() {
+        val rides = RideParser.parseOcrAllRaw(
+            listOf(
+                "Pop", "R$24,60 100% dos ganhos", "4,87 • 395 corridas",
+                "(3 min 707 m) Condomínio Canto Pássaros,", "Rua das Algarobas, 1455 - Pitimbú, Natal - RN,",
+                "(27 min 20 km) casa do espeto, travessa", "olimpio maciel, Macaíba - RN", "Escolher",
+                "Pop", "R$7,10 100% dos ganho... R$1,36/km",
+                "(4 min 1,5 km) Nova colina, Morada da Paz", "(7 min 3,7 km) IEADERN - Assembleia de", "Escolher"
+            )
+        )
+        assertEquals(2, rides.size)
+        assertEquals(24.60, rides[0].price, 0.001)
+        assertEquals(7.10, rides[1].price, 0.001)
+        assertEquals(1.36, rides[1].estPerKm!!, 0.001)
+    }
+
+    @Test
+    fun list99AllInOneBlock() {
+        val rides = RideParser.parseAll(listOf(list99Separate.joinToString(" ")))
+        assertEquals(2, rides.size)
+        assertEquals(20.0, rides[0].tripKm!!, 0.001)
+        assertEquals(1.5, rides[1].pickupKm!!, 0.001)
+    }
 }

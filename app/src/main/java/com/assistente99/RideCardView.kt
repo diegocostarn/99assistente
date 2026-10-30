@@ -8,6 +8,8 @@ import android.text.SpannableString
 import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
 import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.util.Locale
@@ -16,8 +18,9 @@ import java.util.Locale
  * O card com o R$/km. É usado tanto na janela flutuante sobre os apps (OverlayView)
  * quanto na prévia da tela "Personalizar o card", então os dois ficam sempre iguais.
  *
- * Tudo que o usuário personaliza (tamanho, fonte, transparência, campos) é lido de [Prefs]
- * a cada [bind], por isso as mudanças aparecem na próxima solicitação sem reiniciar nada.
+ * Corpo branco, com borda na cor do app de origem (preta na Uber, laranja na 99), um selo com o nome
+ * do app e o R$/km grande, na cor da faixa (verde, amarelo ou vermelho).
+ * O tamanho, a transparência e os campos vêm de [Prefs] a cada [bind].
  */
 class RideCardView(context: Context) : LinearLayout(context) {
 
@@ -25,29 +28,21 @@ class RideCardView(context: Context) : LinearLayout(context) {
         orientation = VERTICAL
     }
 
-    /** Desenha uma solicitação. */
-    fun bind(ride: RideInfo, prefs: Prefs) {
+    /** Desenha uma solicitação. [source] é "Uber" ou "99" (define o selo e a cor da borda). */
+    fun bind(ride: RideInfo, prefs: Prefs, source: String? = null) {
         removeAllViews()
 
         val includePickup = prefs.includePickup
         val perKm = ride.perKm(includePickup)
-        val shown = perKm
         val kmTotal = ride.totalKm(includePickup)
+        val band = bandOf(perKm, prefs)
 
-        applyFrame(
-            prefs,
-            when {
-                shown == null -> COLOR_NEUTRAL
-                shown >= prefs.goodPerKm -> COLOR_GOOD
-                shown >= prefs.minPerKm -> COLOR_OK
-                else -> COLOR_BAD
-            }
-        )
+        applyFrame(prefs, source)
+        addHeader(source, band, prefs)
 
         var rows = 0
-
         if (prefs.showPerKm) {
-            addLine(if (perKm != null) "R$ ${fmt(perKm)} / km" else "R$ -- / km", 26f, true, prefs)
+            addLine(if (perKm != null) "R$ ${fmt(perKm)}/km" else "R$ --/km", 30f, true, bandColor(band), prefs)
             rows++
         }
 
@@ -62,62 +57,55 @@ class RideCardView(context: Context) : LinearLayout(context) {
             priceKm += km
         }
         if (priceKm.isNotEmpty()) {
-            addLine(priceKm.joinToString(" • "), 15f, false, prefs)
+            addLine(priceKm.joinToString("  •  "), 16f, true, INK, prefs)
             rows++
         }
 
+        val details = mutableListOf<String>()
         if (prefs.showTime) {
             val total = ride.totalMin(includePickup)
             if (total > 0) {
-                var t = "Tempo: $total min"
+                var t = "$total min"
                 if (includePickup && ride.pickupMin != null && ride.tripMin != null) {
                     t += " (${ride.pickupMin} + ${ride.tripMin})"
                 }
-                addLine(t, 15f, false, prefs)
-                rows++
+                details += t
             }
         }
-
-        val money = mutableListOf<String>()
-        if (prefs.showPerHour) ride.perHour(includePickup)?.let { money += "R$ ${fmt(it)} / hora" }
-        if (money.isNotEmpty()) {
-            addLine(money.joinToString(" • "), 14f, false, prefs)
+        if (prefs.showPerHour) ride.perHour(includePickup)?.let { details += "R$ ${fmt(it)}/h" }
+        if (details.isNotEmpty()) {
+            addLine(details.joinToString("  •  "), 14f, false, MUTED, prefs)
             rows++
         }
 
         // Se o usuário desmarcou tudo, ainda assim mostra o R$/km (um card vazio não serve para nada).
         if (rows == 0) {
-            addLine(if (perKm != null) "R$ ${fmt(perKm)} / km" else "R$ -- / km", 26f, true, prefs)
+            addLine(if (perKm != null) "R$ ${fmt(perKm)}/km" else "R$ --/km", 30f, true, bandColor(band), prefs)
         }
     }
 
     /**
      * Várias corridas ao mesmo tempo (lista "Solicitações" da 99): uma linha por corrida, com o R$/km
-     * colorido pela sua faixa (verde, amarelo, vermelho) e o valor e os km ao lado.
+     * colorido pela sua faixa e o valor e os km ao lado.
      */
-    fun bindMany(rides: List<RideInfo>, prefs: Prefs) {
+    fun bindMany(rides: List<RideInfo>, prefs: Prefs, source: String? = null) {
         removeAllViews()
-        applyFrame(prefs, COLOR_NEUTRAL)
+        applyFrame(prefs, source)
+        addHeader(source, null, prefs)
         val includePickup = prefs.includePickup
         for (ride in rides.take(MAX_ROWS)) {
             val perKm = ride.perKm(includePickup)
-            val shown = perKm
-            val color = when {
-                shown == null -> 0xFFDDDDDD.toInt()
-                shown >= prefs.goodPerKm -> 0xFF4CD07D.toInt()
-                shown >= prefs.minPerKm -> 0xFFF2B84B.toInt()
-                else -> 0xFFFF6B61.toInt()
-            }
+            val color = bandColor(bandOf(perKm, prefs))
             val label = if (perKm != null) "R$ ${fmt(perKm)}/km" else "R$ --/km"
-            val rest = "   R$ ${fmt(ride.price)} • ${fmt(ride.totalKm(includePickup))} km"
+            val rest = "   R$ ${fmt(ride.price)}  •  ${fmt(ride.totalKm(includePickup))} km"
             val span = SpannableString(label + rest)
             span.setSpan(ForegroundColorSpan(color), 0, label.length, 0)
             span.setSpan(StyleSpan(Typeface.BOLD), 0, label.length, 0)
             addView(TextView(context).apply {
                 text = span
-                setTextColor(Color.WHITE)
+                setTextColor(INK)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f * prefs.cardScale)
-                typeface = fontFor(prefs.cardFont, false)
+                setPadding(0, dp(3f * prefs.cardScale), 0, dp(3f * prefs.cardScale))
             })
         }
     }
@@ -125,27 +113,82 @@ class RideCardView(context: Context) : LinearLayout(context) {
     /** Card de diagnóstico: leitura de tela sem corrida reconhecida. */
     fun bindDebug(message: String, prefs: Prefs) {
         removeAllViews()
-        applyFrame(prefs, COLOR_NEUTRAL)
-        addLine("Diagnóstico", 22f, true, prefs)
-        addLine(message, 14f, false, prefs)
+        applyFrame(prefs, null)
+        addLine("Diagnóstico", 20f, true, INK, prefs)
+        addLine(message, 14f, false, MUTED, prefs)
     }
 
-    private fun applyFrame(prefs: Prefs, base: Int) {
+    // ---------- Peças ----------
+
+    /** Faixa do R$/km: 2 boa, 1 média, 0 baixa, -1 sem valor. */
+    private fun bandOf(perKm: Double?, prefs: Prefs): Int = when {
+        perKm == null -> -1
+        perKm >= prefs.goodPerKm -> 2
+        perKm >= prefs.minPerKm -> 1
+        else -> 0
+    }
+
+    private fun bandColor(band: Int): Int = when (band) {
+        2 -> GOOD
+        1 -> OK
+        0 -> BAD
+        else -> MUTED
+    }
+
+    /** Selo do app (Uber preto, 99 laranja) à esquerda e a faixa ("Boa", "Média", "Baixa") à direita. */
+    private fun addHeader(source: String?, band: Int?, prefs: Prefs) {
+        if (source == null && band == null) return
+        val s = prefs.cardScale
+        val row = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        if (source != null) {
+            row.addView(pill(source.uppercase(Locale.ROOT), brandColor(source), Color.WHITE, 13f, prefs))
+        }
+        row.addView(View(context), LayoutParams(0, 1, 1f))
+        if (band != null && band >= 0) {
+            val label = when (band) { 2 -> "BOA"; 1 -> "MÉDIA"; else -> "BAIXA" }
+            row.addView(pill(label, bandColor(band), Color.WHITE, 12f, prefs))
+        }
+        addView(row, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(4f * s)
+        })
+    }
+
+    private fun pill(text: String, bg: Int, fg: Int, sizeSp: Float, prefs: Prefs): TextView {
+        val s = prefs.cardScale
+        return TextView(context).apply {
+            this.text = text
+            setTextColor(fg)
+            setTypeface(typeface, Typeface.BOLD)
+            letterSpacing = 0.06f
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp * s)
+            setPadding(dp(10f * s), dp(3f * s), dp(10f * s), dp(3f * s))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(20f * s).toFloat()
+                setColor(bg)
+            }
+        }
+    }
+
+    private fun applyFrame(prefs: Prefs, source: String?) {
         val s = prefs.cardScale
         val alpha = prefs.cardAlpha * 255 / 100
         background = GradientDrawable().apply {
-            cornerRadius = dp(14f * s).toFloat()
-            setColor(Color.argb(alpha, Color.red(base), Color.green(base), Color.blue(base)))
+            cornerRadius = dp(16f * s).toFloat()
+            setColor(Color.argb(alpha, 255, 255, 255))
+            setStroke(dp(3.5f * s), if (source != null) brandColor(source) else 0xFF9CA3AF.toInt())
         }
-        setPadding(dp(16f * s), dp(10f * s), dp(16f * s), dp(10f * s))
+        setPadding(dp(14f * s), dp(10f * s), dp(14f * s), dp(10f * s))
     }
 
-    private fun addLine(text: String, sizeSp: Float, bold: Boolean, prefs: Prefs) {
+    private fun addLine(text: String, sizeSp: Float, bold: Boolean, color: Int, prefs: Prefs) {
         addView(TextView(context).apply {
             this.text = text
-            setTextColor(Color.WHITE)
+            setTextColor(color)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp * prefs.cardScale)
-            typeface = fontFor(prefs.cardFont, bold)
+            if (bold) setTypeface(typeface, Typeface.BOLD)
         })
     }
 
@@ -155,12 +198,15 @@ class RideCardView(context: Context) : LinearLayout(context) {
 
     companion object {
         private const val MAX_ROWS = 5
-        private const val COLOR_GOOD = 0xFF137A3A.toInt()
-        private const val COLOR_OK = 0xFFB7791F.toInt()
-        private const val COLOR_BAD = 0xFFB3261E.toInt()
-        private const val COLOR_NEUTRAL = 0xFF333333.toInt()
+        private val INK = 0xFF111827.toInt()
+        private val MUTED = 0xFF4B5563.toInt()
+        private val GOOD = 0xFF15803D.toInt()
+        private val OK = 0xFFB45309.toInt()
+        private val BAD = 0xFFB91C1C.toInt()
 
-        val FONT_NAMES = listOf("Padrão", "Condensada", "Serifada", "Monoespaçada", "Casual")
+        /** Preto para a Uber, laranja para a 99. */
+        fun brandColor(source: String): Int =
+            if (source.equals("Uber", ignoreCase = true)) 0xFF000000.toInt() else 0xFFFF7A00.toInt()
 
         /** Nomes das 9 posições, na mesma ordem do índice salvo em [Prefs.cardPosition]. */
         val POSITION_NAMES = listOf(
@@ -168,16 +214,5 @@ class RideCardView(context: Context) : LinearLayout(context) {
             "Meio da tela", "Meio, esquerda", "Meio, direita",
             "Base, centro", "Base, esquerda", "Base, direita"
         )
-
-        fun fontFor(code: Int, bold: Boolean): Typeface {
-            val style = if (bold) Typeface.BOLD else Typeface.NORMAL
-            return when (code) {
-                1 -> Typeface.create("sans-serif-condensed", style)
-                2 -> Typeface.create(Typeface.SERIF, style)
-                3 -> Typeface.create(Typeface.MONOSPACE, style)
-                4 -> Typeface.create("casual", style)
-                else -> Typeface.create(Typeface.DEFAULT, style)
-            }
-        }
     }
 }
