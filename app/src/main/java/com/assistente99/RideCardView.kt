@@ -24,13 +24,30 @@ import java.util.Locale
  */
 class RideCardView(context: Context) : LinearLayout(context) {
 
+    // Cores do tema do card (claro ou escuro), definidas a cada desenho.
+    private var dark = false
+    private val INK get() = if (dark) 0xFFF3F4F6.toInt() else 0xFF111827.toInt()
+    private val MUTED get() = if (dark) 0xFFB6BDC9.toInt() else 0xFF4B5563.toInt()
+    private val GOOD get() = if (dark) 0xFF4CD07D.toInt() else 0xFF15803D.toInt()
+    private val OK get() = if (dark) 0xFFF2B84B.toInt() else 0xFFB45309.toInt()
+    private val BAD get() = if (dark) 0xFFFF6B63.toInt() else 0xFFB91C1C.toInt()
+
     init {
         orientation = VERTICAL
+    }
+
+    private fun pickTheme(prefs: Prefs) {
+        dark = when (prefs.cardTheme) {
+            1 -> false
+            2 -> true
+            else -> Pal.dark(context)
+        }
     }
 
     /** Desenha uma solicitação. [source] é "Uber" ou "99" (define o selo e a cor da borda). */
     fun bind(ride: RideInfo, prefs: Prefs, source: String? = null) {
         removeAllViews()
+        pickTheme(prefs)
 
         val includePickup = prefs.includePickup
         val perKm = ride.perKm(includePickup)
@@ -90,6 +107,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
      */
     fun bindMany(rides: List<RideInfo>, prefs: Prefs, source: String? = null) {
         removeAllViews()
+        pickTheme(prefs)
         applyFrame(prefs, source)
         addHeader(source, null, prefs)
         val includePickup = prefs.includePickup
@@ -113,6 +131,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
     /** Card de diagnóstico: leitura de tela sem corrida reconhecida. */
     fun bindDebug(message: String, prefs: Prefs) {
         removeAllViews()
+        pickTheme(prefs)
         applyFrame(prefs, null)
         addLine("Diagnóstico", 20f, true, INK, prefs)
         addLine(message, 14f, false, MUTED, prefs)
@@ -144,7 +163,11 @@ class RideCardView(context: Context) : LinearLayout(context) {
             gravity = Gravity.CENTER_VERTICAL
         }
         if (source != null) {
-            row.addView(pill(source.uppercase(Locale.ROOT), brandColor(source), Color.WHITE, 13f, prefs))
+            val uberDark = dark && source.equals("Uber", ignoreCase = true)
+            row.addView(
+                pill(source.uppercase(Locale.ROOT), if (uberDark) Color.WHITE else brandColor(source),
+                    if (uberDark) Color.BLACK else Color.WHITE, 13f, prefs)
+            )
         }
         if (band != null && band >= 0) {
             val label = when (band) { 2 -> "BOA"; 1 -> "MÉDIA"; else -> "BAIXA" }
@@ -178,8 +201,14 @@ class RideCardView(context: Context) : LinearLayout(context) {
         val alpha = prefs.cardAlpha * 255 / 100
         background = GradientDrawable().apply {
             cornerRadius = dp(16f * s).toFloat()
-            setColor(Color.argb(alpha, 255, 255, 255))
-            setStroke(dp(3.5f * s), if (source != null) brandColor(source) else 0xFF9CA3AF.toInt())
+            if (dark) setColor(Color.argb(alpha, 0x1A, 0x1D, 0x24)) else setColor(Color.argb(alpha, 255, 255, 255))
+            // Borda preta da Uber some num card escuro: lá ela vira branca.
+            val border = when {
+                source == null -> 0xFF9CA3AF.toInt()
+                dark && source.equals("Uber", ignoreCase = true) -> 0xFFFFFFFF.toInt()
+                else -> brandColor(source)
+            }
+            setStroke(dp(3.5f * s), border)
         }
         setPadding(dp(14f * s), dp(10f * s), dp(14f * s), dp(10f * s))
     }
@@ -199,11 +228,6 @@ class RideCardView(context: Context) : LinearLayout(context) {
 
     companion object {
         private const val MAX_ROWS = 5
-        private val INK = 0xFF111827.toInt()
-        private val MUTED = 0xFF4B5563.toInt()
-        private val GOOD = 0xFF15803D.toInt()
-        private val OK = 0xFFB45309.toInt()
-        private val BAD = 0xFFB91C1C.toInt()
 
         /** Preto para a Uber, laranja para a 99. */
         fun brandColor(source: String): Int =

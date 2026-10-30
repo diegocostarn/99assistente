@@ -3,13 +3,9 @@ package com.assistente99
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
-import android.view.ViewGroup
-import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -26,30 +22,13 @@ class RideLogActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "Últimas viagens"
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-
-        content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(12), dp(12), dp(12))
-        }
-        setContentView(ScrollView(this).apply {
-            setBackgroundColor(Pal.bg(this@RideLogActivity))
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            )
-            addView(content)
-        })
+        supportActionBar?.hide()
+        content = Ui.screen(this, "Últimas viagens", "As ${RideLog.MAX} solicitações mais recentes, Uber e 99")
     }
 
     override fun onResume() {
         super.onResume()
         render()
-    }
-
-    override fun onSupportNavigateUp(): Boolean {
-        finish()
-        return true
     }
 
     private fun render() {
@@ -58,103 +37,79 @@ class RideLogActivity : AppCompatActivity() {
         val entries = RideLog(this).all()
 
         if (entries.isEmpty()) {
-            content.addView(TextView(this).apply {
-                text = "Nenhuma solicitação registrada ainda.\n\nFique online na Uber ou na 99: " +
-                    "cada solicitação que chegar aparece aqui, as últimas ${RideLog.MAX}."
-                textSize = 16f
-                setPadding(dp(4), dp(24), dp(4), dp(24))
+            content.addView(Ui.card(this).apply {
+                addView(Ui.text(this@RideLogActivity, "Nenhuma solicitação registrada ainda", 16f, Pal.ink(this@RideLogActivity), true))
+                addView(Ui.text(
+                    this@RideLogActivity,
+                    "Fique online na Uber ou na 99: cada solicitação que chegar aparece aqui.",
+                    14f, Pal.muted(this@RideLogActivity)
+                ).apply { setPadding(0, dp(6), 0, 0) })
             })
             return
         }
 
         for (e in entries) content.addView(card(e, prefs))
 
-        content.addView(Button(this).apply {
-            text = "Limpar histórico"
-            setOnClickListener {
-                AlertDialog.Builder(this@RideLogActivity)
-                    .setMessage("Apagar as ${entries.size} solicitações do histórico?")
-                    .setPositiveButton("Apagar") { _, _ ->
-                        RideLog(this@RideLogActivity).clear()
-                        render()
-                    }
-                    .setNegativeButton("Cancelar", null)
-                    .show()
-            }
+        content.addView(Ui.button(this, "Limpar histórico", Ui.DANGER) {
+            AlertDialog.Builder(this@RideLogActivity)
+                .setMessage("Apagar as ${entries.size} solicitações do histórico?")
+                .setPositiveButton("Apagar") { _, _ ->
+                    RideLog(this@RideLogActivity).clear()
+                    render()
+                }
+                .setNegativeButton("Cancelar", null)
+                .show()
         })
     }
 
     private fun card(e: RideLog.Entry, prefs: Prefs): LinearLayout {
-        val good = prefs.goodPerKm
-        val min = prefs.minPerKm
-        val perKm = e.perKm
+        val ink = Pal.ink(this)
+        val muted = Pal.muted(this)
         val dark = Pal.dark(this)
+        val perKm = e.perKm
         val accent = when {
-            perKm == null -> Pal.muted(this)
-            perKm >= good -> Color.parseColor(if (dark) "#4CD07D" else "#137A3A")
-            perKm >= min -> Color.parseColor(if (dark) "#F2B84B" else "#B7791F")
-            else -> Color.parseColor(if (dark) "#FF6B63" else "#B3261E")
+            perKm == null -> muted
+            perKm >= prefs.goodPerKm -> Color.parseColor(if (dark) "#4CD07D" else "#15803D")
+            perKm >= prefs.minPerKm -> Color.parseColor(if (dark) "#F2B84B" else "#B45309")
+            else -> Color.parseColor(if (dark) "#FF6B63" else "#B91C1C")
         }
 
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(12).toFloat()
-                setColor(Color.parseColor("#22808080"))
-                setStroke(dp(2), accent)
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(10) }
-        }
+        val card = Ui.card(this)
 
         // Linha 1: app de origem + horário
-        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        header.addView(sourceBadge(e.source))
-        header.addView(TextView(this).apply {
-            text = "  " + SimpleDateFormat("dd/MM HH:mm", br).format(Date(e.time))
-            textSize = 13f
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            addView(Ui.sourcePill(this@RideLogActivity, e.source))
+            addView(Ui.text(
+                this@RideLogActivity,
+                SimpleDateFormat("dd/MM  HH:mm", br).format(Date(e.time)), 13f, muted
+            ).apply { setPadding(dp(10), 0, 0, 0) })
         })
-        card.addView(header)
 
         // Linha 2: R$/km em destaque + preço
-        card.addView(TextView(this).apply {
-            text = if (perKm != null) "R$ ${fmt(perKm)} / km" else "R$ -- / km"
-            textSize = 26f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(accent)
-            setPadding(0, dp(6), 0, 0)
-        })
-        card.addView(TextView(this).apply {
-            text = "Valor da corrida: R$ ${fmt(e.price)}"
-            textSize = 15f
-        })
+        card.addView(Ui.text(
+            this, if (perKm != null) "R$ ${fmt(perKm)}/km" else "R$ --/km", 28f, accent, true
+        ).apply { setPadding(0, dp(6), 0, 0) })
+        card.addView(Ui.text(this, "R$ ${fmt(e.price)}", 16f, ink, true))
 
         // Tempo e distância
-        val tempo = buildString {
-            append("Tempo: ")
-            val a = e.pickupMin
-            val b = e.tripMin
-            when {
-                a != null && b != null -> append("$a min até o passageiro + $b min de viagem = ${a + b} min")
-                b != null -> append("$b min de viagem")
-                else -> append("não lido")
-            }
+        val a = e.pickupMin
+        val b = e.tripMin
+        val tempo = when {
+            a != null && b != null -> "$a min até o passageiro + $b min de viagem = ${a + b} min"
+            b != null -> "$b min de viagem"
+            else -> "não lido"
         }
-        card.addView(TextView(this).apply { text = tempo; textSize = 14f })
-
-        val dist = buildString {
-            append("Distância: ")
-            val a = e.pickupKm
-            val b = e.tripKm
-            when {
-                a != null && b != null -> append("${fmt(a)} km até o passageiro + ${fmt(b)} km de viagem = ${fmt(a + b)} km")
-                b != null -> append("${fmt(b)} km de viagem")
-                else -> append("não lida")
-            }
+        val ka = e.pickupKm
+        val kb = e.tripKm
+        val dist = when {
+            ka != null && kb != null -> "${fmt(ka)} km até o passageiro + ${fmt(kb)} km de viagem = ${fmt(ka + kb)} km"
+            kb != null -> "${fmt(kb)} km de viagem"
+            else -> "não lida"
         }
-        card.addView(TextView(this).apply { text = dist; textSize = 14f })
+        card.addView(info("Tempo", tempo))
+        card.addView(info("Distância", dist))
 
         // Endereços e botões de mapa
         addAddress(card, "Embarque", e.pickupAddress, "Abrir embarque no mapa")
@@ -162,34 +117,15 @@ class RideLogActivity : AppCompatActivity() {
         return card
     }
 
-    private fun addAddress(card: LinearLayout, label: String, address: String?, buttonText: String) {
-        card.addView(TextView(this).apply {
-            text = if (address != null) "$label: $address" else "$label: endereço não lido"
-            textSize = 14f
-            setPadding(0, dp(8), 0, 0)
-        })
-        if (address != null) {
-            card.addView(Button(this).apply {
-                text = buttonText
-                transformationMethod = null
-                setOnClickListener { openMap(address) }
-            })
-        }
-    }
+    private fun info(label: String, value: String): TextView = Ui.text(
+        this, "$label: $value", 14f, Pal.muted(this)
+    ).apply { setPadding(0, dp(4), 0, 0) }
 
-    private fun sourceBadge(source: String): TextView {
-        val isUber = source == "Uber"
-        return TextView(this).apply {
-            text = source.uppercase(br)
-            textSize = 13f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(if (isUber) Color.WHITE else Color.BLACK)
-            setPadding(dp(10), dp(3), dp(10), dp(3))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(8).toFloat()
-                setColor(if (isUber) Color.BLACK else Color.parseColor("#FFC800"))
-            }
-        }
+    private fun addAddress(card: LinearLayout, label: String, address: String?, buttonText: String) {
+        card.addView(Ui.text(
+            this, if (address != null) "$label: $address" else "$label: endereço não lido", 14f, Pal.ink(this)
+        ).apply { setPadding(0, dp(10), 0, 0) })
+        if (address != null) card.addView(Ui.outlineButton(this, buttonText) { openMap(address) })
     }
 
     /** Abre o endereço no app de mapas do celular (Google Maps, Waze etc., conforme o aparelho). */
@@ -204,5 +140,5 @@ class RideLogActivity : AppCompatActivity() {
 
     private fun fmt(v: Double): String = String.format(br, "%.2f", v)
 
-    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+    private fun dp(v: Int): Int = Ui.dp(this, v)
 }

@@ -18,6 +18,16 @@ class Prefs(context: Context) {
         get() = sp.getInt("theme_mode", 0)
         set(v) = sp.edit().putInt("theme_mode", v).apply()
 
+    /** Segundos que o card fica na tela depois que a solicitação some (3 a 12). */
+    var cardSeconds: Int
+        get() = sp.getInt("card_seconds", 6).coerceIn(3, 12)
+        set(v) = sp.edit().putInt("card_seconds", v.coerceIn(3, 12)).apply()
+
+    /** Tema do card sobre os apps: 0 segue o tema do app, 1 claro, 2 escuro. */
+    var cardTheme: Int
+        get() = sp.getInt("card_theme", 0)
+        set(v) = sp.edit().putInt("card_theme", v).apply()
+
     /** Chaves do botão flutuante: ligar/desligar a leitura de cada app. */
     var enableUber: Boolean
         get() = sp.getBoolean("enable_uber", true)
@@ -32,9 +42,10 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("floating_button", true)
         set(v) = sp.edit().putBoolean("floating_button", v).apply()
 
-    var floatX: Int
-        get() = sp.getInt("float_x", -1)
-        set(v) = sp.edit().putInt("float_x", v).apply()
+    /** Lado da tela onde o botão flutuante fica preso: 0 esquerda, 1 direita. */
+    var floatSide: Int
+        get() = sp.getInt("float_side", 1)
+        set(v) = sp.edit().putInt("float_side", v).apply()
 
     var floatY: Int
         get() = sp.getInt("float_y", -1)
@@ -154,7 +165,7 @@ class Prefs(context: Context) {
     /** Volta a aparência do card ao padrão (não mexe nas faixas de R$/km nem no custo do carro). */
     fun resetCard() {
         sp.edit()
-            .remove("card_x").remove("card_y").remove("card_scale").remove("card_alpha").remove("card_position")
+            .remove("card_seconds").remove("card_theme").remove("card_x").remove("card_y").remove("card_scale").remove("card_alpha").remove("card_position")
             .remove("show_per_km").remove("show_per_hour").remove("show_price")
             .remove("show_km").remove("show_time")
             .apply()

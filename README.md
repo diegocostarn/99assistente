@@ -46,6 +46,8 @@ Corpo branco com borda **preta na Uber** e **laranja na 99**, selo com o nome do
 
 Na tela principal, **Personalizar o card** permite ajustar, com prévia ao vivo:
 
+- **Tema do card**: claro, escuro ou o mesmo do app (no escuro, a borda da Uber fica branca para aparecer);
+- **Tempo na tela** (3 a 12 s): quanto tempo o card continua visível depois que a solicitação some;
 - **Tamanho** (60% a 200%) e **opacidade** (30% a 100%);
 - **O que mostrar**: R$/km, valor da corrida, distância, R$/h e tempo total;
 - **Posição livre**: toque em "Posicionar livremente", arraste o card para qualquer ponto da tela (dá para abrir a Uber ou a 99 antes, para ver o lugar real) e toque em "Salvar posição".; "Voltar à posição padrão" leva o card de volta ao topo;
@@ -62,9 +64,10 @@ As mudanças valem já na próxima solicitação. Na leitura por OCR (Uber), o a
 
 ## Botão flutuante
 
-Um botão redondo "R$" fica sobre os apps (com o serviço de acessibilidade ativo). Arraste para mudar de lugar. Tocando, abre uma janelinha com:
+Um botão redondo "R$" fica sobre os apps (com o serviço de acessibilidade ativo). Arraste para mudar de lugar: ao soltar, ele gruda na lateral mais próxima (esquerda ou direita). Tocando, abre uma janelinha para o lado de dentro da tela (para a esquerda se o botão está na direita, e vice-versa), com:
 
 - **Últimas viagens**: abre o histórico;
+- **Abrir o aplicativo**: abre a tela principal do Assistente 99;
 - chaves para **ligar ou desligar a leitura da Uber e da 99** separadamente (desligada, o app ignora aquele app).
 
 Toque fora da janelinha para fechá-la. Para esconder o botão, desligue **Botão flutuante** na tela principal e toque em Salvar. A posição fica guardada.

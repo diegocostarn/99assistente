@@ -94,71 +94,16 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- Visual ----------
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-
-    private fun round(color: Int, radiusDp: Int, strokeColor: Int? = null) = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = dp(radiusDp).toFloat()
-        if (strokeColor != null) setStroke(dp(1), strokeColor)
-    }
-
-    private fun card(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        background = round(CARD, 18, LINE)
-        setPadding(dp(16), dp(14), dp(16), dp(14))
-        layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(12) }
-    }
-
-    private fun text(t: String, size: Float, color: Int, bold: Boolean = false) = TextView(this).apply {
-        text = t
-        textSize = size
-        setTextColor(color)
-        if (bold) setTypeface(typeface, Typeface.BOLD)
-    }
-
-    private fun sectionTitle(t: String) = text(t, 12f, MUTED, true).apply {
-        letterSpacing = 0.08f
-        setPadding(dp(4), dp(22), 0, 0)
-    }
-
-    private fun filledButton(t: String, color: Int = ACCENT, onClick: () -> Unit) = Button(this).apply {
-        text = t
-        transformationMethod = null
-        textSize = 15f
-        setTextColor(Color.WHITE)
-        setTypeface(typeface, Typeface.BOLD)
-        background = round(color, 14)
-        stateListAnimator = null
-        minHeight = dp(48)
-        minimumHeight = dp(48)
-        layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(10) }
-        setOnClickListener { onClick() }
-    }
-
-    private fun tile(emoji: String, title: String, sub: String, onClick: () -> Unit) = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        background = round(CARD, 18, LINE)
-        setPadding(dp(16), dp(14), dp(16), dp(14))
-        layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(10) }
-        isClickable = true
-        isFocusable = true
-        addView(text(emoji, 26f, INK).apply { setPadding(0, 0, dp(14), 0) })
-        addView(LinearLayout(this@MainActivity).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            addView(text(title, 16f, INK, true))
-            addView(text(sub, 13f, MUTED))
-        })
-        addView(text("›", 26f, MUTED))
-        setOnClickListener { onClick() }
-    }
+    private fun dp(v: Int) = Ui.dp(this, v)
+    private fun round(color: Int, radiusDp: Int, strokeColor: Int? = null) = Ui.round(this, color, radiusDp, strokeColor)
+    private fun card() = Ui.card(this)
+    private fun text(t: String, size: Float, color: Int, bold: Boolean = false) = Ui.text(this, t, size, color, bold)
+    private fun sectionTitle(t: String) = Ui.sectionTitle(this, t)
+    private fun filledButton(t: String, color: Int = ACCENT, onClick: () -> Unit) = Ui.button(this, t, color, onClick)
+    private fun tile(emoji: String, title: String, sub: String, onClick: () -> Unit) = Ui.tile(this, emoji, title, sub, onClick)
+    private fun fieldLabel(t: String) = Ui.fieldLabel(this, t)
+    private fun numberField(value: Float) = Ui.numberField(this, value)
+    private fun switchRow(t: String, sub: String, checked: Boolean) = Ui.switchRow(this, t, sub, checked)
 
     private fun statusRow(title: String): Triple<View, TextView, LinearLayout> {
         val box = card()
@@ -178,34 +123,6 @@ class MainActivity : AppCompatActivity() {
         row.addView(col)
         box.addView(row)
         return Triple(dot, state, box)
-    }
-
-    private fun fieldLabel(t: String) = text(t, 13f, MUTED).apply { setPadding(0, dp(12), 0, dp(4)) }
-
-    private fun numberField(value: Float) = EditText(this).apply {
-        inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
-        setText(if (value == 0f) "" else value.toString())
-        setTextColor(INK)
-        textSize = 16f
-        background = round(Pal.field(this@MainActivity), 12)
-        setPadding(dp(14), dp(10), dp(14), dp(10))
-    }
-
-    private fun switchRow(t: String, sub: String, checked: Boolean): SwitchCompat = SwitchCompat(this).apply {
-        text = t
-        isChecked = checked
-        textSize = 15f
-        setTextColor(INK)
-        setPadding(0, dp(10), 0, dp(10))
-        layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-        // O subtítulo vai junto no texto, em cinza e menor.
-        val s = android.text.SpannableString("$t\n$sub")
-        s.setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, t.length, 0)
-        s.setSpan(android.text.style.RelativeSizeSpan(0.82f), t.length + 1, s.length, 0)
-        s.setSpan(android.text.style.ForegroundColorSpan(MUTED), t.length + 1, s.length, 0)
-        text = s
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -267,28 +184,10 @@ class MainActivity : AppCompatActivity() {
         col.addView(sectionTitle("AJUSTES"))
         val set = card()
         set.addView(text("Tema do app", 13f, MUTED))
-        set.addView(LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(6), 0, dp(4))
-            listOf("Automático", "Claro", "Escuro").forEachIndexed { i, name ->
-                addView(Button(this@MainActivity).apply {
-                    text = name
-                    transformationMethod = null
-                    textSize = 14f
-                    stateListAnimator = null
-                    val sel = prefs.themeMode == i
-                    setTextColor(if (sel) Color.WHITE else INK)
-                    background = round(if (sel) ACCENT else Pal.field(this@MainActivity), 12)
-                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                        if (i > 0) marginStart = dp(8)
-                    }
-                    setOnClickListener {
-                        prefs.themeMode = i
-                        Pal.apply(this@MainActivity)
-                        recreate()
-                    }
-                })
-            }
+        set.addView(Ui.segmented(this, listOf("Automático", "Claro", "Escuro"), prefs.themeMode) { i ->
+            prefs.themeMode = i
+            Pal.apply(this)
+            recreate()
         })
         set.addView(fieldLabel("R$/km mínimo aceitável (abaixo disso o card fica vermelho)"))
         minField = numberField(prefs.minPerKm).also { set.addView(it) }
@@ -384,10 +283,10 @@ class MainActivity : AppCompatActivity() {
     private val MUTED get() = Pal.muted(this)
 
     companion object {
-        private val HEADER = 0xFF0F172A.toInt()
-        private val ACCENT = 0xFF16A34A.toInt()
-        private val GOOD = 0xFF22C55E.toInt()
-        private val BAD = 0xFFEF4444.toInt()
+        private val HEADER = Ui.HEADER
+        private val ACCENT = Ui.ACCENT
+        private val GOOD = Ui.GOOD
+        private val BAD = Ui.BAD
     }
 
     /** Mostra o último texto lido da tela dos apps e permite compartilhar (ex.: WhatsApp). */

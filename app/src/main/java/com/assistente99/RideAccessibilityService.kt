@@ -37,7 +37,17 @@ class RideAccessibilityService : AccessibilityService() {
         scan()
     }
 
-    private val hideRunnable = Runnable { overlay.hide() }
+    private var hideScheduled = false
+    private val hideRunnable = Runnable {
+        hideScheduled = false
+        overlay.hide()
+    }
+
+    /** Cancela o "esconder o card" que estava marcado. */
+    private fun cancelHide() {
+        handler.removeCallbacks(hideRunnable)
+        hideScheduled = false
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -61,7 +71,7 @@ class RideAccessibilityService : AccessibilityService() {
     /** Chamado pelo serviço de captura (OCR) quando ele reconhece uma corrida na imagem. */
     fun showRideFromOcr(ride: RideInfo) {
         handler.post {
-            handler.removeCallbacks(hideRunnable)
+            cancelHide()
             val source = RideLog.sourceLabel(OcrState.lastSparsePkg)
             overlay.show(ride, prefs, source)
             rideLog.record(source, ride, prefs.includePickup)
@@ -71,16 +81,16 @@ class RideAccessibilityService : AccessibilityService() {
     /** Mostra o card com uma corrida de exemplo por 6 s (botão "Testar" da tela Personalizar o card). */
     fun previewOverlay() {
         handler.post {
-            handler.removeCallbacks(hideRunnable)
+            cancelHide()
             overlay.show(SAMPLE_RIDE, prefs, "Uber")
-            handler.postDelayed(hideRunnable, 6000)
+            scheduleHide()
         }
     }
 
     /** Posicionamento livre: mostra o card de exemplo para arrastar e salvar. */
     fun startPositioning() {
         handler.post {
-            handler.removeCallbacks(hideRunnable)
+            cancelHide()
             overlay.startEdit(SAMPLE_RIDE, "Uber")
         }
     }
@@ -92,7 +102,7 @@ class RideAccessibilityService : AccessibilityService() {
     fun showRidesFromOcr(rides: List<RideInfo>) {
         if (rides.isEmpty()) return
         handler.post {
-            handler.removeCallbacks(hideRunnable)
+            cancelHide()
             val source = RideLog.sourceLabel(OcrState.lastSparsePkg)
             if (rides.size > 1) overlay.showMany(rides, prefs, source) else overlay.show(rides[0], prefs, source)
             for (r in rides) rideLog.record(source, r, prefs.includePickup)
@@ -101,7 +111,7 @@ class RideAccessibilityService : AccessibilityService() {
 
     /** Chamado pelo serviço de captura (OCR) quando a corrida saiu da tela. */
     fun hideFromOcr() {
-        handler.post { overlay.hide() }
+        handler.post { scheduleHide() }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -183,7 +193,7 @@ class RideAccessibilityService : AccessibilityService() {
         if (roots.isEmpty()) {
             saveStatus(0, 0, 0)
             if (prefs.debugMode) {
-                handler.removeCallbacks(hideRunnable)
+                cancelHide()
                 overlay.showDebug("$lastEventPkg enviou eventos, mas não consegui abrir a janela do app.")
             } else {
                 scheduleHide()
@@ -226,17 +236,17 @@ class RideAccessibilityService : AccessibilityService() {
 
         when {
             ride != null -> {
-                handler.removeCallbacks(hideRunnable)
+                cancelHide()
                 val source = RideLog.sourceLabel(pkg)
                 if (rides.size > 1) overlay.showMany(rides, prefs, source) else overlay.show(ride, prefs, source)
                 for (r in rides) rideLog.record(RideLog.sourceLabel(pkg), r, prefs.includePickup)
             }
             (sparse || unparsedWide) && OcrState.running -> {
                 // O OCR cuida do card; só evita que um "esconder" pendente apague o que ele mostrou.
-                handler.removeCallbacks(hideRunnable)
+                cancelHide()
             }
             prefs.debugMode -> {
-                handler.removeCallbacks(hideRunnable)
+                cancelHide()
                 overlay.showDebug(
                     if (texts.isEmpty()) {
                         "$pkg: tela sem nenhum texto legível ($nodes elementos)."
@@ -290,10 +300,12 @@ class RideAccessibilityService : AccessibilityService() {
         prefs.lastRideDumpAt = System.currentTimeMillis()
     }
 
-    /** Esconde o card só se a solicitação continuar ausente por ~1,2 s (evita piscar). */
+    /** Esconde o card depois do tempo escolhido em "Personalizar o card" (3 a 12 s), contado a partir de quando a solicitação some. */
     private fun scheduleHide() {
-        handler.removeCallbacks(hideRunnable)
-        handler.postDelayed(hideRunnable, 1200)
+        // Se já tem um "esconder" marcado, deixa: as leituras seguintes da tela não podem adiar o fim.
+        if (hideScheduled) return
+        hideScheduled = true
+        handler.postDelayed(hideRunnable, prefs.cardSeconds * 1000L)
     }
 
     /** Coleta textos recursivamente e devolve quantos elementos foram visitados. */

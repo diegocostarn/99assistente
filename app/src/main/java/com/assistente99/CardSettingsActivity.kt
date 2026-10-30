@@ -2,182 +2,158 @@ package com.assistente99
 
 import android.graphics.Color
 import android.os.Bundle
-import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.CheckBox
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.SeekBar
-import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 
 /**
- * Personalizar o card: tamanho, transparência, quais informações aparecem e onde ele fica na tela.
- * Cada mudança é salva na hora e a prévia no topo atualiza junto.
+ * Personalizar o card: tamanho, transparência, tema, quais informações aparecem, onde ele fica
+ * e por quanto tempo. Cada mudança é salva na hora e a prévia no topo atualiza junto.
  */
 class CardSettingsActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
     private lateinit var previewHolder: FrameLayout
     private lateinit var content: LinearLayout
+    private lateinit var positionLabel: TextView
 
     // Exemplo com os números de um card real da Uber (R$ 12,70, 2,9 km + 8,1 km, 8 + 12 min).
     private val sample = RideInfo(12.70, 2.9, 8.1, 8, 12, 1.15)
 
-    private lateinit var positionLabel: TextView
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "Personalizar o card"
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.hide()
         prefs = Prefs(this)
-
-        content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(24))
-        }
-        setContentView(ScrollView(this).apply {
-            setBackgroundColor(Pal.bg(this@CardSettingsActivity))
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            )
-            addView(content)
-        })
+        content = Ui.screen(this, "Personalizar o card", "Tamanho, tema, campos, posição e tempo na tela")
         build()
-    }
-
-    override fun onSupportNavigateUp(): Boolean {
-        finish()
-        return true
     }
 
     private fun build() {
         content.removeAllViews()
+        val muted = Pal.muted(this)
 
         // ---- Prévia ----
-        content.addView(label("Prévia (como o card aparece sobre a Uber/99)"))
+        content.addView(Ui.sectionTitle(this, "PRÉVIA"))
         previewHolder = FrameLayout(this).apply {
-            setBackgroundColor(Color.parseColor("#7A8794"))
-            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = Ui.round(this@CardSettingsActivity, 0xFF7A8794.toInt(), 18)
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
         }
         content.addView(previewHolder)
         refreshPreview()
 
-        // ---- Tamanho ----
-        val sizeText = TextView(this).apply { textSize = 14f }
-        content.addView(label("Tamanho"))
-        content.addView(sizeText)
-        content.addView(SeekBar(this).apply {
-            max = 140 // 60% a 200%
-            progress = prefs.cardScalePercent - 60
-            sizeText.text = "${prefs.cardScalePercent}%"
-            setOnSeekBarChangeListener(onChange { p ->
-                prefs.cardScalePercent = p + 60
-                sizeText.text = "${prefs.cardScalePercent}%"
-                refreshPreview()
-            })
+        // ---- Aparência ----
+        content.addView(Ui.sectionTitle(this, "APARÊNCIA"))
+        val look = Ui.card(this)
+        val sizeText = Ui.text(this, "Tamanho: ${prefs.cardScalePercent}%", 14f, muted)
+        look.addView(sizeText)
+        look.addView(Ui.seek(this, 140, prefs.cardScalePercent - 60) { p ->
+            prefs.cardScalePercent = p + 60
+            sizeText.text = "Tamanho: ${prefs.cardScalePercent}%"
+            refreshPreview()
         })
-
-        // ---- Opacidade ----
-        val alphaText = TextView(this).apply { textSize = 14f }
-        content.addView(label("Opacidade (menor = mais transparente)"))
-        content.addView(alphaText)
-        content.addView(SeekBar(this).apply {
-            max = 70 // 30% a 100%
-            progress = prefs.cardAlpha - 30
-            alphaText.text = "${prefs.cardAlpha}%"
-            setOnSeekBarChangeListener(onChange { p ->
-                prefs.cardAlpha = p + 30
-                alphaText.text = "${prefs.cardAlpha}%"
-                refreshPreview()
-            })
+        val alphaText = Ui.text(this, "Opacidade: ${prefs.cardAlpha}% (menor = mais transparente)", 14f, muted)
+            .apply { setPadding(0, dp(10), 0, 0) }
+        look.addView(alphaText)
+        look.addView(Ui.seek(this, 70, prefs.cardAlpha - 30) { p ->
+            prefs.cardAlpha = p + 30
+            alphaText.text = "Opacidade: ${prefs.cardAlpha}% (menor = mais transparente)"
+            refreshPreview()
         })
+        look.addView(Ui.fieldLabel(this, "Tema do card"))
+        look.addView(Ui.segmented(this, listOf("Do app", "Claro", "Escuro"), prefs.cardTheme) { i ->
+            prefs.cardTheme = i
+            build()
+        })
+        content.addView(look)
 
         // ---- O que mostrar ----
-        content.addView(label("O que mostrar no card"))
-        content.addView(check("Valor por km (R$/km)", prefs.showPerKm) { prefs.showPerKm = it })
-        content.addView(check("Valor da corrida (R$)", prefs.showPrice) { prefs.showPrice = it })
-        content.addView(check("Distância (km)", prefs.showKm) { prefs.showKm = it })
-        content.addView(check("Valor por hora (R$/h)", prefs.showPerHour) { prefs.showPerHour = it })
-        content.addView(check("Tempo total (min)", prefs.showTime) { prefs.showTime = it })
+        content.addView(Ui.sectionTitle(this, "O QUE MOSTRAR NO CARD"))
+        val fields = Ui.card(this)
+        fields.addView(check("Valor por km", "R$/km", prefs.showPerKm) { prefs.showPerKm = it })
+        fields.addView(check("Valor da corrida", "Preço em R$", prefs.showPrice) { prefs.showPrice = it })
+        fields.addView(check("Distância", "Total em km", prefs.showKm) { prefs.showKm = it })
+        fields.addView(check("Valor por hora", "R$/h", prefs.showPerHour) { prefs.showPerHour = it })
+        fields.addView(check("Tempo total", "Em minutos", prefs.showTime) { prefs.showTime = it })
+        content.addView(fields)
+
+        // ---- Tempo na tela ----
+        content.addView(Ui.sectionTitle(this, "TEMPO NA TELA"))
+        val timing = Ui.card(this)
+        val secText = Ui.text(this, secondsLabel(), 14f, muted)
+        timing.addView(secText)
+        timing.addView(Ui.seek(this, MAX_SECONDS - MIN_SECONDS, prefs.cardSeconds - MIN_SECONDS) { p ->
+            prefs.cardSeconds = p + MIN_SECONDS
+            secText.text = secondsLabel()
+        })
+        content.addView(timing)
 
         // ---- Posição ----
-        content.addView(label("Posição na tela"))
-        content.addView(Button(this).apply {
-            text = "Posicionar livremente (arrastar o card)"
-            transformationMethod = null
-            setOnClickListener {
-                val svc = RideAccessibilityService.instance
-                if (svc == null) {
-                    Toast.makeText(
-                        this@CardSettingsActivity,
-                        "Ative o serviço de acessibilidade primeiro (tela principal).",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    svc.startPositioning()
-                    Toast.makeText(
-                        this@CardSettingsActivity,
-                        "Arraste o card e toque em Salvar posição. Dá para abrir a Uber ou a 99 antes, para ver o lugar real.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+        content.addView(Ui.sectionTitle(this, "POSIÇÃO NA TELA"))
+        val pos = Ui.card(this)
+        positionLabel = Ui.text(this, "", 14f, muted)
+        pos.addView(positionLabel)
+        pos.addView(Ui.button(this, "Posicionar livremente (arrastar o card)") {
+            val svc = RideAccessibilityService.instance
+            if (svc == null) {
+                needService()
+            } else {
+                svc.startPositioning()
+                Toast.makeText(
+                    this,
+                    "Arraste o card e toque em Salvar posição. Dá para abrir a Uber ou a 99 antes, para ver o lugar real.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         })
-        positionLabel = TextView(this).apply { textSize = 14f }
-        content.addView(positionLabel)
-        content.addView(Button(this).apply {
-            text = "Voltar à posição padrão (topo)"
-            transformationMethod = null
-            setOnClickListener {
-                prefs.cardPosition = 0
-                prefs.cardX = -1
-                prefs.cardY = -1
-                refreshPositionButtons()
-            }
+        pos.addView(Ui.outlineButton(this, "Voltar à posição padrão (topo)") {
+            prefs.cardPosition = 0
+            prefs.cardX = -1
+            prefs.cardY = -1
+            refreshPositionLabel()
         })
-        content.addView(TextView(this).apply {
-            text = "Dica: na Uber o app lê a imagem da tela, e o que o card cobrir não é lido. " +
+        pos.addView(Ui.text(
+            this,
+            "Dica: na Uber o app lê a imagem da tela, e o que o card cobrir não é lido. " +
                 "Deixe o card onde ele não tape o valor e os km da solicitação (topo ou uma borda, " +
-                "e use um tamanho menor se precisar). Tapar o card da 99 não atrapalha, porque ele é lido por texto."
-            textSize = 13f
-            setPadding(0, dp(8), 0, 0)
-        })
+                "e use um tamanho menor se precisar). Tapar o card da 99 não atrapalha, porque ele é lido por texto.",
+            13f, muted
+        ).apply { setPadding(0, dp(10), 0, 0) })
+        content.addView(pos)
+        refreshPositionLabel()
 
         // ---- Ações ----
-        content.addView(Button(this).apply {
-            text = "Testar sobre outros apps (6 segundos)"
-            setOnClickListener {
-                val svc = RideAccessibilityService.instance
-                if (svc == null) {
-                    Toast.makeText(
-                        this@CardSettingsActivity,
-                        "Ative o serviço de acessibilidade primeiro (tela principal).",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    svc.previewOverlay()
-                    Toast.makeText(
-                        this@CardSettingsActivity,
-                        "Volte para a tela inicial ou para a Uber: o card aparece por 6 s.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+        content.addView(Ui.sectionTitle(this, "TESTAR"))
+        content.addView(Ui.button(this, "Testar sobre outros apps (${prefs.cardSeconds} segundos)") {
+            val svc = RideAccessibilityService.instance
+            if (svc == null) {
+                needService()
+            } else {
+                svc.previewOverlay()
+                Toast.makeText(
+                    this,
+                    "Volte para a tela inicial ou para a Uber: o card aparece por ${prefs.cardSeconds} s.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         })
-        content.addView(Button(this).apply {
-            text = "Restaurar padrão"
-            setOnClickListener {
-                prefs.resetCard()
-                build()
-            }
+        content.addView(Ui.button(this, "Restaurar padrão", Ui.GRAY) {
+            prefs.resetCard()
+            build()
         })
+    }
+
+    private fun secondsLabel() =
+        "O card fica ${prefs.cardSeconds} segundos na tela depois que a solicitação some"
+
+    private fun needService() {
+        Toast.makeText(this, "Ative o serviço de acessibilidade primeiro (tela principal).", Toast.LENGTH_LONG).show()
     }
 
     private fun refreshPreview() {
@@ -192,37 +168,26 @@ class CardSettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::positionLabel.isInitialized) refreshPositionButtons()
+        if (::positionLabel.isInitialized) refreshPositionLabel()
     }
 
-    private fun refreshPositionButtons() {
+    private fun refreshPositionLabel() {
         val custom = prefs.cardX >= 0 && prefs.cardY >= 0
         positionLabel.text = if (custom) "Posição: livre (a que você arrastou)" else "Posição: padrão (topo da tela)"
     }
 
-    private fun label(text: String) = TextView(this).apply {
-        this.text = text
-        textSize = 16f
-        setPadding(0, dp(18), 0, dp(4))
-    }
-
-    private fun check(text: String, checked: Boolean, onToggle: (Boolean) -> Unit) = CheckBox(this).apply {
-        this.text = text
-        isChecked = checked
-        setOnCheckedChangeListener { _, value ->
-            onToggle(value)
-            refreshPreview()
-        }
-    }
-
-    private fun onChange(block: (Int) -> Unit) = object : SeekBar.OnSeekBarChangeListener {
-        override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-            if (fromUser) block(progress)
+    private fun check(title: String, sub: String, checked: Boolean, onToggle: (Boolean) -> Unit): SwitchCompat =
+        Ui.switchRow(this, title, sub, checked).apply {
+            setOnCheckedChangeListener { _, value ->
+                onToggle(value)
+                refreshPreview()
+            }
         }
 
-        override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-        override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-    }
+    private fun dp(v: Int): Int = Ui.dp(this, v)
 
-    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+    companion object {
+        const val MIN_SECONDS = 3
+        const val MAX_SECONDS = 12
+    }
 }
