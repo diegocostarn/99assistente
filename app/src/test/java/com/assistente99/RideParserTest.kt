@@ -392,4 +392,11 @@ class RideParserTest {
         assertEquals(1.9, rides[0].tripKm!!, 0.001)
         assertEquals(6.90, rides[0].price, 0.001)
     }
+
+    @Test
+    fun bonusLineIsNeverThePrice() {
+        // Preço ilegível pelo OCR ("R$25,."): não pode pegar o "R$1,14 Tarifa base dinâmica incl." como preço.
+        val lines = listOf("R$2,01/km", "R$25,.", "R$1,14 Tarifa base dinâmica incl.", "3 min (841 m)", "21 min (12 km)")
+        assertNull(RideParser.parse(lines))
+    }
 }

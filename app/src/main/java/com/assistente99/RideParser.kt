@@ -249,11 +249,12 @@ object RideParser {
             priceOnlyRegex.find(t.trim())?.let { return parseBrNumber(it.groupValues[1]) }
         }
         for (t in texts) {
+            if (isBonusText(t)) continue
             priceStartRegex.find(t.trim())?.let { return parseBrNumber(it.groupValues[1]) }
         }
         for (t in texts) {
             val lower = t.lowercase()
-            if ("/km" in lower || "incluíd" in lower || "est." in lower || t.trimStart().startsWith("+")) continue
+            if (isBonusText(t) || "/km" in lower || "incluíd" in lower || "est." in lower || t.trimStart().startsWith("+")) continue
             priceRegex.find(t)?.let { return parseBrNumber(it.groupValues[1]) }
         }
         return null
