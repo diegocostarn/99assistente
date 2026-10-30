@@ -24,7 +24,8 @@ object GoodAlert {
     fun isGood(ride: RideInfo, prefs: Prefs): Boolean =
         isGood(ride, prefs.goodMinPerKm.toDouble(), prefs.goodMaxPickupKm.toDouble(), prefs.includePickup)
 
-    private val handler = Handler(Looper.getMainLooper())
+    // Criado só quando precisa tocar o aviso (nos testes de unidade o Looper do Android não existe).
+    private val handler by lazy { Handler(Looper.getMainLooper()) }
 
     /** Dois bipes no volume de alarme (toca mesmo com o celular no silencioso das notificações). */
     fun beep() {
