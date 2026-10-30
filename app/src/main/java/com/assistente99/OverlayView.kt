@@ -33,16 +33,34 @@ class OverlayView(private val service: AccessibilityService) {
 
     fun show(ride: RideInfo, prefs: Prefs, source: String? = null, good: Boolean = false) {
         ensureCreated().bind(ride, prefs, source, good)
+        relayout()
     }
 
     /** Várias corridas na mesma tela (lista de solicitações): uma linha por corrida. */
     fun showMany(rides: List<RideInfo>, prefs: Prefs, source: String? = null) {
         ensureCreated().bindMany(rides, prefs, source)
+        relayout()
     }
 
     /** Card de diagnóstico: aparece quando há leitura de tela mas nenhuma corrida reconhecida. */
     fun showDebug(message: String) {
         ensureCreated().bindDebug(message, prefs)
+        relayout()
+    }
+
+    /**
+     * A janela do card é WRAP_CONTENT, mas o Android nem sempre a redimensiona quando o conteúdo
+     * muda numa janela já aberta: o card ficava com a largura da leitura anterior e cortava o texto
+     * (sumia o R$/km e os km). Aqui força medir de novo e reaplicar o tamanho da janela.
+     */
+    private fun relayout() {
+        val v = card ?: return
+        val lp = cardParams ?: return
+        v.requestLayout()
+        v.post {
+            if (card !== v) return@post
+            try { wm.updateViewLayout(v, lp) } catch (_: Exception) {}
+        }
     }
 
     fun hide() {
