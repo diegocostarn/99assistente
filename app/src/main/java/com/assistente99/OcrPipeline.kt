@@ -26,8 +26,6 @@ class OcrPipeline(context: Context) {
     @Volatile var busy = false
         private set
 
-    private var lastTop = 0
-    private var lastScale = 1f
     private var lastOcrDump = ""
     private val ocrRideHistory = ArrayList<String>()
     private val ocrRejected = ArrayList<String>()
@@ -53,34 +51,18 @@ class OcrPipeline(context: Context) {
         // Na 99 a lista de solicitações começa logo abaixo do título, então ignora só a barra de status.
         val fraction = if (OcrState.lastSparsePkg == "com.app99.driver") IGNORE_TOP_99 else IGNORE_TOP_FRACTION
         val top = (full.height * fraction).toInt()
-        lastTop = top
-        lastScale = scale
         val cropped = Bitmap.createBitmap(full, 0, top, full.width, full.height - top)
         full.recycle()
 
         busy = true
         recognizer.process(InputImage.fromBitmap(cropped, 0))
             .addOnSuccessListener { result ->
-                val lines = result.textBlocks.flatMap { b -> b.lines }
-                rememberAcceptButton(lines)
-                handleLines(lines.map { it.text })
+                handleLines(result.textBlocks.flatMap { b -> b.lines.map { it.text } })
             }
             .addOnCompleteListener {
                 busy = false
                 cropped.recycle()
             }
-    }
-
-    /** Guarda onde está o botão "Aceitar" (para o aceite automático), em pixels da tela real. */
-    private fun rememberAcceptButton(lines: List<com.google.mlkit.vision.text.Text.Line>) {
-        val line = lines.firstOrNull { l ->
-            val t = l.text.trim().lowercase()
-            t.length <= 22 && ACCEPT_WORDS.any { it in t }
-        } ?: return
-        val box = line.boundingBox ?: return
-        OcrState.acceptX = box.exactCenterX() / lastScale
-        OcrState.acceptY = (box.exactCenterY() + lastTop) / lastScale
-        OcrState.acceptAt = System.currentTimeMillis()
     }
 
     fun close() {
@@ -132,8 +114,6 @@ class OcrPipeline(context: Context) {
     }
 
     companion object {
-        /** Textos do botão de aceitar nos apps (em minúsculas). */
-        val ACCEPT_WORDS = listOf("aceitar", "tenho interesse")
 
         /** Fração do topo da tela ignorada (o card do Assistente 99 aparece ali). */
         private const val IGNORE_TOP_FRACTION = 0.36f

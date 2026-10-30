@@ -29,11 +29,5 @@ object OcrState {
     /** Última vez que o OCR reconheceu uma corrida. */
     @Volatile var lastOcrRideAt = 0L
 
-    /** Onde fica o botão "Aceitar" na tela (pixels), visto pelo OCR, e de qual corrida. */
-    @Volatile var acceptX = -1f
-    @Volatile var acceptY = -1f
-    @Volatile var acceptAt = 0L
-    @Volatile var acceptKey = ""
-
     const val GRACE_MS = 2500L
 }

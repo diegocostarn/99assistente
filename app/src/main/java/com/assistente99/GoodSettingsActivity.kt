@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 
@@ -19,7 +18,7 @@ class GoodSettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         supportActionBar?.hide()
         prefs = Prefs(this)
-        val content = Ui.screen(this, "Essa é boa", "Avisa quando a corrida vale a pena, e aceita sozinho se você quiser")
+        val content = Ui.screen(this, "Essa é boa", "Avisa quando a corrida vale a pena")
         val muted = Pal.muted(this)
 
         // ---- O que é uma corrida boa ----
@@ -47,49 +46,6 @@ class GoodSettingsActivity : AppCompatActivity() {
         sound.addView(Ui.outlineButton(this, "Ouvir o aviso") { GoodAlert.beep() })
         content.addView(sound)
 
-        // ---- Aceite automático ----
-        content.addView(Ui.sectionTitle(this, "ACEITE AUTOMÁTICO"))
-        val auto = Ui.card(this)
-        val autoSwitch = Ui.switchRow(
-            this, "Aceitar a corrida boa sozinho", "Aperta o botão \"Aceitar\" por você", prefs.autoAccept
-        )
-        val secText = Ui.text(this, secondsLabel(), 14f, muted).apply { setPadding(0, dp(10), 0, 0) }
-        autoSwitch.setOnCheckedChangeListener { button, on ->
-            if (on && !prefs.autoAccept) {
-                // Pede confirmação antes de ligar: o app vai tocar na tela sozinho.
-                button.isChecked = false
-                AlertDialog.Builder(this)
-                    .setTitle("Ligar o aceite automático?")
-                    .setMessage(
-                        "O app vai apertar \"Aceitar\" sozinho nas corridas marcadas como boas, só em solicitação única " +
-                            "(não na lista da 99), depois do tempo escolhido.\n\n" +
-                            "A Uber e a 99 podem proibir isso nos termos de uso, e a conta pode ser penalizada. " +
-                            "Você é responsável por usar. Ele só toca se o botão ainda estiver na tela."
-                    )
-                    .setPositiveButton("Ligar") { _, _ ->
-                        prefs.autoAccept = true
-                        button.isChecked = true
-                    }
-                    .setNegativeButton("Cancelar", null)
-                    .show()
-            } else if (!on) {
-                prefs.autoAccept = false
-            }
-        }
-        auto.addView(autoSwitch)
-        auto.addView(secText)
-        auto.addView(Ui.seek(this, 9, prefs.autoAcceptSeconds - 1) { p ->
-            prefs.autoAcceptSeconds = p + 1
-            secText.text = secondsLabel()
-        })
-        auto.addView(Ui.text(
-            this,
-            "O aceite usa o serviço de acessibilidade: aperta o botão se o app o mostra, ou toca no lugar onde a " +
-                "leitura por imagem viu o botão. Se não conseguir, o motivo aparece em \"Ver o que o app leu\".",
-            13f, muted
-        ).apply { setPadding(0, dp(10), 0, 0) })
-        content.addView(auto)
-
         content.addView(Ui.button(this, "Salvar") {
             fun parse(f: EditText) = f.text.toString().replace(',', '.').toFloatOrNull()
             val min = parse(minField)
@@ -105,8 +61,6 @@ class GoodSettingsActivity : AppCompatActivity() {
             }
         })
     }
-
-    private fun secondsLabel() = "Esperar ${prefs.autoAcceptSeconds} s antes de aceitar"
 
     private fun dp(v: Int) = Ui.dp(this, v)
 }

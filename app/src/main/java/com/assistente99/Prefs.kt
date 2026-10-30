@@ -33,21 +33,6 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("good_sound", true)
         set(v) = sp.edit().putBoolean("good_sound", v).apply()
 
-    /** Aceita sozinho as corridas boas (desligado por padrão). */
-    var autoAccept: Boolean
-        get() = sp.getBoolean("auto_accept", false)
-        set(v) = sp.edit().putBoolean("auto_accept", v).apply()
-
-    /** Segundos de espera antes de aceitar sozinho (1 a 10, padrão 2). */
-    var autoAcceptSeconds: Int
-        get() = sp.getInt("auto_accept_seconds", 2).coerceIn(1, 10)
-        set(v) = sp.edit().putInt("auto_accept_seconds", v.coerceIn(1, 10)).apply()
-
-    /** Diagnóstico: resultado do último aceite automático. */
-    var lastAcceptLog: String
-        get() = sp.getString("last_accept_log", "") ?: ""
-        set(v) = sp.edit().putString("last_accept_log", v).apply()
-
     /** Tema do app: 0 automático (do celular), 1 claro, 2 escuro. */
     var themeMode: Int
         get() = sp.getInt("theme_mode", 0)

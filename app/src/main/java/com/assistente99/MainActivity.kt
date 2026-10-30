@@ -175,7 +175,7 @@ class MainActivity : AppCompatActivity() {
         col.addView(tile("🕘", "Últimas 10 viagens", "Uber e 99, com endereços e mapa") {
             startActivity(Intent(this, RideLogActivity::class.java))
         })
-        col.addView(tile("✅", "Essa é boa", "Aviso sonoro e aceite automático") {
+        col.addView(tile("✅", "Essa é boa", "Aviso sonoro quando a corrida vale a pena") {
             startActivity(Intent(this, GoodSettingsActivity::class.java))
         })
         col.addView(tile("🎨", "Personalizar o card", "Tamanho, fonte, posição e campos") {
@@ -327,9 +327,7 @@ class MainActivity : AppCompatActivity() {
             "Nenhuma leitura de OCR com km ainda (o card da corrida precisa estar na tela com a captura ligada)."
         }
         val rejected = prefs.ocrRejected.ifBlank { "Nenhuma." }
-        val accept = prefs.lastAcceptLog.ifBlank { "Nenhum ainda." }
-        val message = "ACEITE AUTOMÁTICO (último):\n$accept\n\n" +
-            "OCR - LEITURAS DESCARTADAS (não bateram com a estimativa da Uber):\n$rejected\n\n" +
+        val message = "OCR - LEITURAS DESCARTADAS (não bateram com a estimativa da Uber):\n$rejected\n\n" +
             "OCR - LEITURAS COM KM (mais recente primeiro):\n$ocrRides\n\n" +
             "OCR - ÚLTIMA LEITURA (qualquer tela):\n$ocr\n\n" +
             "ÚLTIMA TELA COM PREÇO E KM (radar/corrida):\n$rideDump\n\n" +

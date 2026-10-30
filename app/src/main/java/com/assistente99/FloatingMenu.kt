@@ -224,6 +224,16 @@ class FloatingMenu(
         box.addView(actionButton("Abrir o aplicativo", false) { open(MainActivity::class.java) })
 
         box.addView(TextView(service).apply {
+            text = "LER PEDIDOS DE"
+            textSize = 11f
+            setTextColor(muted)
+            letterSpacing = 0.08f
+            setPadding(0, dp(14), 0, dp(2))
+        })
+        box.addView(switchRow("Uber", prefs.enableUber) { prefs.enableUber = it; onToggleChanged() })
+        box.addView(switchRow("99", prefs.enable99) { prefs.enable99 = it; onToggleChanged() })
+
+        box.addView(TextView(service).apply {
             text = "⏻  Fechar o app"
             textSize = 15f
             setTextColor(0xFFEF4444.toInt())
@@ -237,22 +247,12 @@ class FloatingMenu(
             setPadding(dp(12), dp(10), dp(12), dp(10))
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(8) }
+            ).apply { topMargin = dp(12) }
             setOnClickListener {
                 closePanel()
                 (service as? RideAccessibilityService)?.closeApp()
             }
         })
-
-        box.addView(TextView(service).apply {
-            text = "LER PEDIDOS DE"
-            textSize = 11f
-            setTextColor(muted)
-            letterSpacing = 0.08f
-            setPadding(0, dp(14), 0, dp(2))
-        })
-        box.addView(switchRow("Uber", prefs.enableUber) { prefs.enableUber = it; onToggleChanged() })
-        box.addView(switchRow("99", prefs.enable99) { prefs.enable99 = it; onToggleChanged() })
         return box
     }
 

@@ -69,14 +69,9 @@ As mudanças valem já na próxima solicitação. Na leitura por OCR (Uber), o a
 - A lista também é lida quando o preço vem na mesma linha de "100% dos ganhos" e do "R$/km", ou quando a tela entrega tudo num bloco de texto só. Na leitura por imagem da 99, só a barra de status é ignorada (para ler a 1ª corrida da lista).
 - Se a tela da 99 tem algum texto, mas a corrida não é reconhecida, o app também tenta ler por imagem (OCR). Isso gasta mais bateria e pode ser desligado na tela principal em **Ler por imagem também quando a tela tiver texto**. Para funcionar, a captura de tela precisa estar ligada.
 
-## Essa é boa (aviso e aceite automático)
+## Essa é boa (aviso)
 
-Na tela principal, **Essa é boa**. Uma corrida é boa quando tem pelo menos o **R$/km** que você definiu (padrão R$ 2,00) e o passageiro está a no máximo a **distância** definida (padrão 1,5 km). Quando isso acontece:
-
-- o card mostra **ESSA É BOA!** e o app toca **dois bipes** (volume de alarme), uma vez por corrida;
-- com o **aceite automático** ligado (desligado por padrão), o app espera o tempo escolhido (1 a 10 s, padrão 2 s) e aperta **Aceitar** sozinho, só em solicitação única. Ele usa o botão que o app expõe ou toca no lugar onde a leitura por imagem viu o botão. O resultado aparece em "Ver o que o app leu".
-
-Atenção: a Uber e a 99 podem proibir o aceite automático nos termos de uso. Você liga por sua conta e risco, e o app pede confirmação.
+Na tela principal, **Essa é boa**. Uma corrida é boa quando tem pelo menos o **R$/km** que você definiu (padrão R$ 2,00) e o passageiro está a no máximo a **distância** definida (padrão 1,5 km). Quando isso acontece, o card mostra **ESSA É BOA!** e o app toca **dois bipes** (volume de alarme), uma vez por corrida.
 
 ## Botão flutuante
 

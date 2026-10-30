@@ -27,7 +27,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
     // Cores do tema do card (claro ou escuro), definidas a cada desenho.
     private var dark = false
     private val INK get() = if (dark) 0xFFF3F4F6.toInt() else 0xFF111827.toInt()
-    private val MUTED get() = if (dark) 0xFFB6BDC9.toInt() else 0xFF4B5563.toInt()
+    private val MUTED get() = if (dark) 0xFFE5E7EB.toInt() else 0xFF374151.toInt()
     private val GOOD get() = if (dark) 0xFF4CD07D.toInt() else 0xFF15803D.toInt()
     private val OK get() = if (dark) 0xFFF2B84B.toInt() else 0xFFB45309.toInt()
     private val BAD get() = if (dark) 0xFFFF6B63.toInt() else 0xFFB91C1C.toInt()
@@ -54,7 +54,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
         val kmTotal = ride.totalKm(includePickup)
         val band = bandOf(perKm, prefs)
 
-        applyFrame(prefs, source)
+        applyFrame(prefs, source, good)
         addHeader(source, band, prefs, good)
 
         var rows = 0
@@ -131,6 +131,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
             span.setSpan(StyleSpan(Typeface.BOLD), 0, label.length, 0)
             addView(TextView(context).apply {
                 text = span
+                legible(this)
                 setTextColor(INK)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f * prefs.cardScale)
                 setPadding(0, dp(3f * prefs.cardScale), 0, dp(3f * prefs.cardScale))
@@ -182,7 +183,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
         if (band != null && band >= 0) {
             val label = if (good) "ESSA É BOA!" else when (band) { 2 -> "BOA"; 1 -> "MÉDIA"; else -> "BAIXA" }
             val labelColor = if (good) 0xFF16A34A.toInt() else bandColor(band)
-            row.addView(pill(label, labelColor, Color.WHITE, 12f, prefs), LayoutParams(
+            row.addView(pill(label, labelColor, Color.WHITE, if (good) 14f else 12f, prefs), LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT
             ).apply { if (source != null) marginStart = dp(8f * s) })
         }
@@ -207,12 +208,19 @@ class RideCardView(context: Context) : LinearLayout(context) {
         }
     }
 
-    private fun applyFrame(prefs: Prefs, source: String?) {
+    private fun applyFrame(prefs: Prefs, source: String?, good: Boolean = false) {
         val s = prefs.cardScale
         val alpha = prefs.cardAlpha * 255 / 100
         background = GradientDrawable().apply {
             cornerRadius = dp(16f * s).toFloat()
-            if (dark) setColor(Color.argb(alpha, 0x1A, 0x1D, 0x24)) else setColor(Color.argb(alpha, 255, 255, 255))
+            // Corrida boa: fundo com um tom de verde, para se destacar.
+            val fill = when {
+                good && dark -> intArrayOf(0x10, 0x3B, 0x22)
+                good -> intArrayOf(0xE3, 0xF8, 0xEA)
+                dark -> intArrayOf(0x1A, 0x1D, 0x24)
+                else -> intArrayOf(255, 255, 255)
+            }
+            setColor(Color.argb(alpha, fill[0], fill[1], fill[2]))
             // Borda preta da Uber some num card escuro: lá ela vira branca.
             val border = when {
                 source == null -> 0xFF9CA3AF.toInt()
@@ -225,9 +233,16 @@ class RideCardView(context: Context) : LinearLayout(context) {
         setPadding(dp(14f * s), dp(10f * s), dp(14f * s), dp(10f * s))
     }
 
+    /** Contorno suave no texto: continua legível mesmo com o fundo do card bem transparente. */
+    private fun legible(tv: TextView) {
+        val glow = if (dark) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        tv.setShadowLayer(dp(4f).toFloat(), 0f, dp(1f).toFloat(), glow)
+    }
+
     private fun addLine(text: String, sizeSp: Float, bold: Boolean, color: Int, prefs: Prefs) {
         addView(TextView(context).apply {
             this.text = text
+            legible(this)
             setTextColor(color)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp * prefs.cardScale)
             if (bold) setTypeface(typeface, Typeface.BOLD)

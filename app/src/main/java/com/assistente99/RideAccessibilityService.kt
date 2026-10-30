@@ -154,100 +154,31 @@ class RideAccessibilityService : AccessibilityService() {
             val source = RideLog.sourceLabel(OcrState.lastSparsePkg)
             overlay.show(ride, prefs, source, isGood(ride))
             rideLog.record(source, ride, prefs.includePickup)
-            onRidesShown(listOf(ride), source, true)
+            onRidesShown(listOf(ride), source)
         }
     }
 
-    // ---------- "Essa é boa" e aceite automático ----------
+    // ---------- "Essa é boa" ----------
 
     private var lastGoodKey = ""
     private var lastGoodAt = 0L
-    private var pendingAcceptKey = ""
-    private var acceptedKey = ""
-    private val acceptRunnable = Runnable { tryAccept() }
 
     private fun isGood(r: RideInfo) = prefs.goodEnabled && GoodAlert.isGood(r, prefs)
 
     private fun rideKey(source: String, r: RideInfo) =
         source + "|" + String.format(java.util.Locale.US, "%.2f", r.price)
 
-    /**
-     * Chamado a cada leitura de corrida na tela. Se alguma é "boa", toca o aviso uma vez por corrida e,
-     * com o aceite automático ligado, marca o aceite para daqui a alguns segundos (só em solicitação única).
-     */
-    private fun onRidesShown(rides: List<RideInfo>, source: String, fromOcr: Boolean) {
+    /** Chamado a cada leitura de corrida na tela. Se alguma é "boa", toca o aviso uma vez por corrida. */
+    private fun onRidesShown(rides: List<RideInfo>, source: String) {
         if (!prefs.goodEnabled) return
         val good = rides.firstOrNull { isGood(it) } ?: return
         val key = rideKey(source, good)
         val now = System.currentTimeMillis()
-        if (fromOcr) OcrState.acceptKey = key
         if (key != lastGoodKey || now - lastGoodAt > 90_000) {
             lastGoodKey = key
             lastGoodAt = now
             if (prefs.goodSound) GoodAlert.beep()
         }
-        if (prefs.autoAccept && rides.size == 1 && key != acceptedKey && key != pendingAcceptKey) {
-            handler.removeCallbacks(acceptRunnable)
-            pendingAcceptKey = key
-            handler.postDelayed(acceptRunnable, prefs.autoAcceptSeconds * 1000L)
-        }
-    }
-
-    /** Aperta "Aceitar": primeiro pelo botão que o app expõe; senão, toca onde o OCR viu o botão. */
-    private fun tryAccept() {
-        val key = pendingAcceptKey
-        pendingAcceptKey = ""
-        if (key.isEmpty() || !prefs.autoAccept) return
-        acceptedKey = key
-        var how = "nenhum botão de aceitar encontrado"
-        var ok = false
-        try {
-            val node = monitoredRoots().firstNotNullOfOrNull { findAcceptNode(it, 0) }
-            if (node != null) {
-                var c: AccessibilityNodeInfo? = node
-                var depth = 0
-                while (c != null && depth < 6 && !ok) {
-                    if (c.isClickable) ok = c.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    c = c.parent
-                    depth++
-                }
-                how = "botão do app"
-                if (!ok) {
-                    val r = android.graphics.Rect()
-                    node.getBoundsInScreen(r)
-                    if (!r.isEmpty) ok = tap(r.exactCenterX(), r.exactCenterY())
-                    how = "toque no botão do app"
-                }
-            }
-        } catch (_: Exception) {
-        }
-        if (!ok) {
-            val fresh = System.currentTimeMillis() - OcrState.acceptAt < 2500 && OcrState.acceptKey == key
-            if (fresh && OcrState.acceptX >= 0) {
-                ok = tap(OcrState.acceptX, OcrState.acceptY)
-                how = "toque onde o OCR viu o botão"
-            }
-        }
-        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-        prefs.lastAcceptLog = "[$time] aceite automático de $key: ${if (ok) "feito" else "NÃO feito"} ($how)"
-    }
-
-    private fun findAcceptNode(node: AccessibilityNodeInfo?, depth: Int): AccessibilityNodeInfo? {
-        if (node == null || depth > 40) return null
-        val t = (node.text?.toString() ?: node.contentDescription?.toString() ?: "").trim().lowercase()
-        if (t.isNotEmpty() && t.length <= 22 && OcrPipeline.ACCEPT_WORDS.any { it in t }) return node
-        for (i in 0 until node.childCount) {
-            findAcceptNode(node.getChild(i), depth + 1)?.let { return it }
-        }
-        return null
-    }
-
-    private fun tap(x: Float, y: Float): Boolean {
-        val path = android.graphics.Path().apply { moveTo(x, y) }
-        val gesture = android.accessibilityservice.GestureDescription.Builder()
-            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 60))
-            .build()
-        return dispatchGesture(gesture, null, null)
     }
 
     /**
@@ -260,8 +191,6 @@ class RideAccessibilityService : AccessibilityService() {
             AppState.pausedAt = System.currentTimeMillis()
             handler.removeCallbacks(scanRunnable)
             scanScheduled = false
-            handler.removeCallbacks(acceptRunnable)
-            pendingAcceptKey = ""
             cancelHide()
             overlay.hide()
             floating?.hide()
@@ -310,7 +239,7 @@ class RideAccessibilityService : AccessibilityService() {
             val source = RideLog.sourceLabel(OcrState.lastSparsePkg)
             if (rides.size > 1) overlay.showMany(rides, prefs, source) else overlay.show(rides[0], prefs, source, isGood(rides[0]))
             for (r in rides) rideLog.record(source, r, prefs.includePickup)
-            onRidesShown(rides, source, true)
+            onRidesShown(rides, source)
         }
     }
 
@@ -446,11 +375,12 @@ class RideAccessibilityService : AccessibilityService() {
                 val source = RideLog.sourceLabel(pkg)
                 if (rides.size > 1) overlay.showMany(rides, prefs, source) else overlay.show(ride, prefs, source, isGood(ride))
                 for (r in rides) rideLog.record(RideLog.sourceLabel(pkg), r, prefs.includePickup)
-                onRidesShown(rides, source, false)
+                onRidesShown(rides, source)
             }
             (sparse || unparsedWide) && OcrState.running -> {
-                // O OCR cuida do card; só evita que um "esconder" pendente apague o que ele mostrou.
-                cancelHide()
+                // Se o card foi desenhado pelo OCR e a corrida ainda está lá, o "esconder" pendente não pode apagá-lo.
+                // Se não, a corrida sumiu: o card some no tempo escolhido em "Personalizar o card".
+                if (OcrState.shownByOcr) cancelHide() else scheduleHide()
             }
             prefs.debugMode -> {
                 cancelHide()
