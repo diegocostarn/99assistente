@@ -1,9 +1,12 @@
 package com.assistente99
 
 import android.accessibilityservice.AccessibilityService
+import android.graphics.Bitmap
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -52,10 +55,85 @@ class RideAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         prefs = Prefs(this)
+        AppState.paused = false
         overlay = OverlayView(this)
         floating = FloatingMenu(this, prefs) { handler.post { overlay.hide() } }
         instance = this
         refreshFloating()
+
+        // Android 11+: a leitura por imagem usa o próprio serviço de acessibilidade (sem captura de tela
+        // do sistema), então não pede autorização e não esconde as notificações do celular.
+        if (Build.VERSION.SDK_INT >= 30) {
+            pipeline = OcrPipeline(this)
+            OcrState.running = true
+            handler.postDelayed(ocrTick, SHOT_INTERVAL_MS)
+        }
+    }
+
+    private var pipeline: OcrPipeline? = null
+    private var shotInFlight = false
+    private var lastWideShotAt = 0L
+
+    private val ocrTick = object : Runnable {
+        override fun run() {
+            try {
+                if (Build.VERSION.SDK_INT >= 30) screenshotTick()
+            } catch (e: Exception) {
+                Log.w(TAG, "Falha na leitura por imagem", e)
+                shotInFlight = false
+            }
+            handler.postDelayed(this, SHOT_INTERVAL_MS)
+        }
+    }
+
+    @androidx.annotation.RequiresApi(30)
+    private fun screenshotTick() {
+        if (AppState.paused) return
+        val pipe = pipeline ?: return
+        val now = System.currentTimeMillis()
+        val sparse = now - OcrState.lastSparseAt < OcrState.GRACE_MS
+        val unparsed = prefs.ocrWhenText && now - OcrState.lastUnparsedAt < OcrState.GRACE_MS
+        val active = sparse || unparsed
+        val accessibilityHasRide = now - OcrState.lastAccessibilityRideAt < OcrState.GRACE_MS
+
+        // Saiu da tela da solicitação: tira o card que o OCR tinha colocado.
+        if (OcrState.shownByOcr && !active) {
+            OcrState.shownByOcr = false
+            scheduleHide()
+        }
+        if (!active || accessibilityHasRide || shotInFlight || pipe.busy) return
+        // Telas com texto são lidas com menos frequência, para poupar bateria.
+        if (!sparse && now - lastWideShotAt < WIDE_SHOT_INTERVAL_MS) return
+        if (!sparse) lastWideShotAt = now
+
+        shotInFlight = true
+        takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : TakeScreenshotCallback {
+            override fun onSuccess(result: ScreenshotResult) {
+                try {
+                    val hb = result.hardwareBuffer
+                    val hw = Bitmap.wrapHardwareBuffer(hb, result.colorSpace)
+                    val soft = hw?.copy(Bitmap.Config.ARGB_8888, true)
+                    hw?.recycle()
+                    hb.close()
+                    if (soft == null) return
+                    // Reduz para ~720 px de largura: mais rápido e suficiente para ler os números do card.
+                    val scale = minOf(1f, MAX_SHOT_WIDTH / soft.width.toFloat())
+                    val small = if (scale < 1f) {
+                        Bitmap.createScaledBitmap(soft, (soft.width * scale).toInt(), (soft.height * scale).toInt(), true)
+                            .also { soft.recycle() }
+                    } else soft
+                    pipe.process(small, scale)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Falha ao ler a imagem", e)
+                } finally {
+                    shotInFlight = false
+                }
+            }
+
+            override fun onFailure(errorCode: Int) {
+                shotInFlight = false
+            }
+        })
     }
 
     private var floating: FloatingMenu? = null
@@ -64,17 +142,142 @@ class RideAccessibilityService : AccessibilityService() {
     fun refreshFloating() {
         handler.post {
             val f = floating ?: return@post
-            if (prefs.floatingButton) f.show() else f.hide()
+            if (prefs.floatingButton && !AppState.paused) f.show() else f.hide()
         }
     }
 
     /** Chamado pelo serviço de captura (OCR) quando ele reconhece uma corrida na imagem. */
     fun showRideFromOcr(ride: RideInfo) {
         handler.post {
+            if (AppState.paused) return@post
             cancelHide()
             val source = RideLog.sourceLabel(OcrState.lastSparsePkg)
-            overlay.show(ride, prefs, source)
+            overlay.show(ride, prefs, source, isGood(ride))
             rideLog.record(source, ride, prefs.includePickup)
+            onRidesShown(listOf(ride), source, true)
+        }
+    }
+
+    // ---------- "Essa é boa" e aceite automático ----------
+
+    private var lastGoodKey = ""
+    private var lastGoodAt = 0L
+    private var pendingAcceptKey = ""
+    private var acceptedKey = ""
+    private val acceptRunnable = Runnable { tryAccept() }
+
+    private fun isGood(r: RideInfo) = prefs.goodEnabled && GoodAlert.isGood(r, prefs)
+
+    private fun rideKey(source: String, r: RideInfo) =
+        source + "|" + String.format(java.util.Locale.US, "%.2f", r.price)
+
+    /**
+     * Chamado a cada leitura de corrida na tela. Se alguma é "boa", toca o aviso uma vez por corrida e,
+     * com o aceite automático ligado, marca o aceite para daqui a alguns segundos (só em solicitação única).
+     */
+    private fun onRidesShown(rides: List<RideInfo>, source: String, fromOcr: Boolean) {
+        if (!prefs.goodEnabled) return
+        val good = rides.firstOrNull { isGood(it) } ?: return
+        val key = rideKey(source, good)
+        val now = System.currentTimeMillis()
+        if (fromOcr) OcrState.acceptKey = key
+        if (key != lastGoodKey || now - lastGoodAt > 90_000) {
+            lastGoodKey = key
+            lastGoodAt = now
+            if (prefs.goodSound) GoodAlert.beep()
+        }
+        if (prefs.autoAccept && rides.size == 1 && key != acceptedKey && key != pendingAcceptKey) {
+            handler.removeCallbacks(acceptRunnable)
+            pendingAcceptKey = key
+            handler.postDelayed(acceptRunnable, prefs.autoAcceptSeconds * 1000L)
+        }
+    }
+
+    /** Aperta "Aceitar": primeiro pelo botão que o app expõe; senão, toca onde o OCR viu o botão. */
+    private fun tryAccept() {
+        val key = pendingAcceptKey
+        pendingAcceptKey = ""
+        if (key.isEmpty() || !prefs.autoAccept) return
+        acceptedKey = key
+        var how = "nenhum botão de aceitar encontrado"
+        var ok = false
+        try {
+            val node = monitoredRoots().firstNotNullOfOrNull { findAcceptNode(it, 0) }
+            if (node != null) {
+                var c: AccessibilityNodeInfo? = node
+                var depth = 0
+                while (c != null && depth < 6 && !ok) {
+                    if (c.isClickable) ok = c.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    c = c.parent
+                    depth++
+                }
+                how = "botão do app"
+                if (!ok) {
+                    val r = android.graphics.Rect()
+                    node.getBoundsInScreen(r)
+                    if (!r.isEmpty) ok = tap(r.exactCenterX(), r.exactCenterY())
+                    how = "toque no botão do app"
+                }
+            }
+        } catch (_: Exception) {
+        }
+        if (!ok) {
+            val fresh = System.currentTimeMillis() - OcrState.acceptAt < 2500 && OcrState.acceptKey == key
+            if (fresh && OcrState.acceptX >= 0) {
+                ok = tap(OcrState.acceptX, OcrState.acceptY)
+                how = "toque onde o OCR viu o botão"
+            }
+        }
+        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        prefs.lastAcceptLog = "[$time] aceite automático de $key: ${if (ok) "feito" else "NÃO feito"} ($how)"
+    }
+
+    private fun findAcceptNode(node: AccessibilityNodeInfo?, depth: Int): AccessibilityNodeInfo? {
+        if (node == null || depth > 40) return null
+        val t = (node.text?.toString() ?: node.contentDescription?.toString() ?: "").trim().lowercase()
+        if (t.isNotEmpty() && t.length <= 22 && OcrPipeline.ACCEPT_WORDS.any { it in t }) return node
+        for (i in 0 until node.childCount) {
+            findAcceptNode(node.getChild(i), depth + 1)?.let { return it }
+        }
+        return null
+    }
+
+    private fun tap(x: Float, y: Float): Boolean {
+        val path = android.graphics.Path().apply { moveTo(x, y) }
+        val gesture = android.accessibilityservice.GestureDescription.Builder()
+            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 60))
+            .build()
+        return dispatchGesture(gesture, null, null)
+    }
+
+    /**
+     * "Fechar o app": esconde o botão flutuante e o card, para a leitura e fecha as telas. O serviço de
+     * acessibilidade segue ativado no Android; abrir o app de novo (ver [resume]) retoma tudo.
+     */
+    fun closeApp() {
+        handler.post {
+            AppState.paused = true
+            AppState.pausedAt = System.currentTimeMillis()
+            handler.removeCallbacks(scanRunnable)
+            scanScheduled = false
+            handler.removeCallbacks(acceptRunnable)
+            pendingAcceptKey = ""
+            cancelHide()
+            overlay.hide()
+            floating?.hide()
+            OcrState.shownByOcr = false
+            RideNotifier.cancel(this)
+            try { stopService(android.content.Intent(this, ScreenCaptureService::class.java)) } catch (_: Exception) {}
+            AppState.finishAll()
+        }
+    }
+
+    /** O app foi aberto de novo: volta a ler e o botão flutuante reaparece sozinho. */
+    fun resume() {
+        handler.post {
+            if (!AppState.paused) return@post
+            AppState.paused = false
+            refreshFloating()
         }
     }
 
@@ -102,10 +305,12 @@ class RideAccessibilityService : AccessibilityService() {
     fun showRidesFromOcr(rides: List<RideInfo>) {
         if (rides.isEmpty()) return
         handler.post {
+            if (AppState.paused) return@post
             cancelHide()
             val source = RideLog.sourceLabel(OcrState.lastSparsePkg)
-            if (rides.size > 1) overlay.showMany(rides, prefs, source) else overlay.show(rides[0], prefs, source)
+            if (rides.size > 1) overlay.showMany(rides, prefs, source) else overlay.show(rides[0], prefs, source, isGood(rides[0]))
             for (r in rides) rideLog.record(source, r, prefs.includePickup)
+            onRidesShown(rides, source, true)
         }
     }
 
@@ -115,6 +320,7 @@ class RideAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (AppState.paused) return
         val pkg = event?.packageName?.toString() ?: return
         countPackage(pkg)
         if (pkg !in prefs.packages) return
@@ -238,8 +444,9 @@ class RideAccessibilityService : AccessibilityService() {
             ride != null -> {
                 cancelHide()
                 val source = RideLog.sourceLabel(pkg)
-                if (rides.size > 1) overlay.showMany(rides, prefs, source) else overlay.show(ride, prefs, source)
+                if (rides.size > 1) overlay.showMany(rides, prefs, source) else overlay.show(ride, prefs, source, isGood(ride))
                 for (r in rides) rideLog.record(RideLog.sourceLabel(pkg), r, prefs.includePickup)
+                onRidesShown(rides, source, false)
             }
             (sparse || unparsedWide) && OcrState.running -> {
                 // O OCR cuida do card; só evita que um "esconder" pendente apague o que ele mostrou.
@@ -331,6 +538,9 @@ class RideAccessibilityService : AccessibilityService() {
         handler.removeCallbacksAndMessages(null)
         if (::overlay.isInitialized) overlay.hide()
         floating?.hide()
+        pipeline?.close()
+        pipeline = null
+        if (Build.VERSION.SDK_INT >= 30) OcrState.running = false
         if (instance === this) instance = null
         super.onDestroy()
     }
@@ -344,7 +554,10 @@ class RideAccessibilityService : AccessibilityService() {
         @Volatile
         var instance: RideAccessibilityService? = null
 
-        private val SAMPLE_RIDE = RideInfo(12.70, 2.9, 8.1, 8, 12, 1.15)
+        private const val SHOT_INTERVAL_MS = 900L
+        private const val WIDE_SHOT_INTERVAL_MS = 2000L
+        private const val MAX_SHOT_WIDTH = 720f
+        private val SAMPLE_RIDE = RideInfo(12.70, 2.9, 8.1, 8, 12, 1.15, rating = 4.87, rides = 395)
     }
 }
 

@@ -332,4 +332,48 @@ class RideParserTest {
         assertEquals(20.0, rides[0].tripKm!!, 0.001)
         assertEquals(1.5, rides[1].pickupKm!!, 0.001)
     }
+
+    @Test
+    fun readsPassengerRatingAndRides99() {
+        val rides = RideParser.parseAll(list99Separate)
+        assertEquals(4.87, rides[0].rating!!, 0.001)
+        assertEquals(395, rides[0].rides)
+        assertEquals(4.95, rides[1].rating!!, 0.001)
+        assertEquals(531, rides[1].rides)
+    }
+
+    @Test
+    fun readsRatingOnSameLineAsRides() {
+        val ride = RideParser.parse(
+            listOf("R$24,60", "4,87 • 1.395 corridas • Cartão verif.", "(3 min 707 m) Rua A, 10", "(27 min 20 km) Rua B, 20")
+        )!!
+        assertEquals(4.87, ride.rating!!, 0.001)
+        assertEquals(1395, ride.rides)
+    }
+
+    @Test
+    fun readsUberRatingWithStar() {
+        val ride = RideParser.parse(listOf("R$ 12,70", "★ 4.93 (1.204)", "8 min (4.3 km)", "10 minutos (6.1 km)"))!!
+        assertEquals(4.93, ride.rating!!, 0.001)
+    }
+
+    @Test
+    fun noRatingWhenCardHasNone() {
+        val ride = RideParser.parse(listOf("R$ 12,70", "Est. de R$1,15/km", "8 min (4.3 km)", "10 minutos (6.1 km)"))!!
+        assertNull(ride.rating)
+        assertNull(ride.rides)
+    }
+
+    @Test
+    fun goodRideNeedsPerKmAndShortPickup() {
+        // R$ 12,70 em 1,0 + 4,0 km = R$ 2,54/km, passageiro a 1,0 km: boa.
+        val good = RideInfo(12.70, 1.0, 4.0, 3, 8)
+        assertEquals(true, GoodAlert.isGood(good, 2.0, 1.5, true))
+        // Passageiro longe demais.
+        assertEquals(false, GoodAlert.isGood(RideInfo(12.70, 2.0, 3.0, 5, 8), 2.0, 1.5, true))
+        // R$/km baixo.
+        assertEquals(false, GoodAlert.isGood(RideInfo(7.10, 1.5, 3.7, 4, 7), 2.0, 1.5, true))
+        // Sem o km até o passageiro, não dá para garantir.
+        assertEquals(false, GoodAlert.isGood(RideInfo(12.70, null, 4.0, null, 8), 2.0, 1.5, true))
+    }
 }

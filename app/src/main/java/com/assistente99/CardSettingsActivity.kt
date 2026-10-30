@@ -22,7 +22,7 @@ class CardSettingsActivity : AppCompatActivity() {
     private lateinit var positionLabel: TextView
 
     // Exemplo com os números de um card real da Uber (R$ 12,70, 2,9 km + 8,1 km, 8 + 12 min).
-    private val sample = RideInfo(12.70, 2.9, 8.1, 8, 12, 1.15)
+    private val sample = RideInfo(12.70, 2.9, 8.1, 8, 12, 1.15, rating = 4.87, rides = 395)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,8 +61,8 @@ class CardSettingsActivity : AppCompatActivity() {
         val alphaText = Ui.text(this, "Opacidade: ${prefs.cardAlpha}% (menor = mais transparente)", 14f, muted)
             .apply { setPadding(0, dp(10), 0, 0) }
         look.addView(alphaText)
-        look.addView(Ui.seek(this, 70, prefs.cardAlpha - 30) { p ->
-            prefs.cardAlpha = p + 30
+        look.addView(Ui.seek(this, 90, prefs.cardAlpha - 10) { p ->
+            prefs.cardAlpha = p + 10
             alphaText.text = "Opacidade: ${prefs.cardAlpha}% (menor = mais transparente)"
             refreshPreview()
         })
@@ -79,6 +79,8 @@ class CardSettingsActivity : AppCompatActivity() {
         fields.addView(check("Valor por km", "R$/km", prefs.showPerKm) { prefs.showPerKm = it })
         fields.addView(check("Valor da corrida", "Preço em R$", prefs.showPrice) { prefs.showPrice = it })
         fields.addView(check("Distância", "Total em km", prefs.showKm) { prefs.showKm = it })
+        fields.addView(check("Nota do passageiro", "Estrelas, quando o app mostra", prefs.showRating) { prefs.showRating = it })
+        fields.addView(check("Corridas do passageiro", "Quantidade, quando o app mostra", prefs.showRides) { prefs.showRides = it })
         fields.addView(check("Valor por hora", "R$/h", prefs.showPerHour) { prefs.showPerHour = it })
         fields.addView(check("Tempo total", "Em minutos", prefs.showTime) { prefs.showTime = it })
         content.addView(fields)

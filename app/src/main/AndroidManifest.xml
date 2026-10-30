@@ -26,6 +26,9 @@
             android:exported="false" />
 
         <activity
+            android:name=".GoodSettingsActivity"
+            android:exported="false" />
+        <activity
             android:name=".CardSettingsActivity"
             android:exported="false" />
 

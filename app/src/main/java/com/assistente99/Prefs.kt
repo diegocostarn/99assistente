@@ -13,6 +13,41 @@ class Prefs(context: Context) {
             if (enableUber) add("com.ubercab.driver")
         }
 
+    // ---------- "Essa é boa" ----------
+
+    var goodEnabled: Boolean
+        get() = sp.getBoolean("good_enabled", true)
+        set(v) = sp.edit().putBoolean("good_enabled", v).apply()
+
+    /** R$/km mínimo para a corrida ser "boa" (padrão 2,00). */
+    var goodMinPerKm: Float
+        get() = sp.getFloat("good_min_per_km", 2.0f)
+        set(v) = sp.edit().putFloat("good_min_per_km", v).apply()
+
+    /** Distância máxima até o passageiro, em km, para a corrida ser "boa" (padrão 1,5). */
+    var goodMaxPickupKm: Float
+        get() = sp.getFloat("good_max_pickup_km", 1.5f)
+        set(v) = sp.edit().putFloat("good_max_pickup_km", v).apply()
+
+    var goodSound: Boolean
+        get() = sp.getBoolean("good_sound", true)
+        set(v) = sp.edit().putBoolean("good_sound", v).apply()
+
+    /** Aceita sozinho as corridas boas (desligado por padrão). */
+    var autoAccept: Boolean
+        get() = sp.getBoolean("auto_accept", false)
+        set(v) = sp.edit().putBoolean("auto_accept", v).apply()
+
+    /** Segundos de espera antes de aceitar sozinho (1 a 10, padrão 2). */
+    var autoAcceptSeconds: Int
+        get() = sp.getInt("auto_accept_seconds", 2).coerceIn(1, 10)
+        set(v) = sp.edit().putInt("auto_accept_seconds", v.coerceIn(1, 10)).apply()
+
+    /** Diagnóstico: resultado do último aceite automático. */
+    var lastAcceptLog: String
+        get() = sp.getString("last_accept_log", "") ?: ""
+        set(v) = sp.edit().putString("last_accept_log", v).apply()
+
     /** Tema do app: 0 automático (do celular), 1 claro, 2 escuro. */
     var themeMode: Int
         get() = sp.getInt("theme_mode", 0)
@@ -123,10 +158,10 @@ class Prefs(context: Context) {
 
     val cardScale: Float get() = cardScalePercent / 100f
 
-    /** Opacidade do card, em %, de 30 a 100. */
+    /** Opacidade do card (fundo e borda), em %, de 10 a 100. */
     var cardAlpha: Int
-        get() = sp.getInt("card_alpha", 90).coerceIn(30, 100)
-        set(v) = sp.edit().putInt("card_alpha", v.coerceIn(30, 100)).apply()
+        get() = sp.getInt("card_alpha", 90).coerceIn(10, 100)
+        set(v) = sp.edit().putInt("card_alpha", v.coerceIn(10, 100)).apply()
 
     /** Posição na tela, de 0 a 8 (ver [RideCardView.POSITION_NAMES]). */
     var cardPosition: Int
@@ -158,6 +193,14 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("show_km", true)
         set(v) = sp.edit().putBoolean("show_km", v).apply()
 
+    var showRating: Boolean
+        get() = sp.getBoolean("show_rating", true)
+        set(v) = sp.edit().putBoolean("show_rating", v).apply()
+
+    var showRides: Boolean
+        get() = sp.getBoolean("show_rides", true)
+        set(v) = sp.edit().putBoolean("show_rides", v).apply()
+
     var showTime: Boolean
         get() = sp.getBoolean("show_time", false)
         set(v) = sp.edit().putBoolean("show_time", v).apply()
@@ -167,7 +210,7 @@ class Prefs(context: Context) {
         sp.edit()
             .remove("card_seconds").remove("card_theme").remove("card_x").remove("card_y").remove("card_scale").remove("card_alpha").remove("card_position")
             .remove("show_per_km").remove("show_per_hour").remove("show_price")
-            .remove("show_km").remove("show_time")
+            .remove("show_km").remove("show_time").remove("show_rating").remove("show_rides")
             .apply()
     }
 

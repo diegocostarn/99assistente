@@ -45,7 +45,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
     }
 
     /** Desenha uma solicitação. [source] é "Uber" ou "99" (define o selo e a cor da borda). */
-    fun bind(ride: RideInfo, prefs: Prefs, source: String? = null) {
+    fun bind(ride: RideInfo, prefs: Prefs, source: String? = null, good: Boolean = false) {
         removeAllViews()
         pickTheme(prefs)
 
@@ -55,7 +55,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
         val band = bandOf(perKm, prefs)
 
         applyFrame(prefs, source)
-        addHeader(source, band, prefs)
+        addHeader(source, band, prefs, good)
 
         var rows = 0
         if (prefs.showPerKm) {
@@ -75,6 +75,14 @@ class RideCardView(context: Context) : LinearLayout(context) {
         }
         if (priceKm.isNotEmpty()) {
             addLine(priceKm.joinToString("  •  "), 16f, true, INK, prefs)
+            rows++
+        }
+
+        val passenger = mutableListOf<String>()
+        if (prefs.showRating && ride.rating != null) passenger += "★ ${fmt(ride.rating)}"
+        if (prefs.showRides && ride.rides != null) passenger += "${ride.rides} corridas"
+        if (passenger.isNotEmpty()) {
+            addLine(passenger.joinToString("  •  "), 14f, true, MUTED, prefs)
             rows++
         }
 
@@ -115,7 +123,9 @@ class RideCardView(context: Context) : LinearLayout(context) {
             val perKm = ride.perKm(includePickup)
             val color = bandColor(bandOf(perKm, prefs))
             val label = if (perKm != null) "R$ ${fmt(perKm)}/km" else "R$ --/km"
-            val rest = "   R$ ${fmt(ride.price)}  •  ${fmt(ride.totalKm(includePickup))} km"
+            var rest = "   R$ ${fmt(ride.price)}  •  ${fmt(ride.totalKm(includePickup))} km"
+            if (prefs.showRating && ride.rating != null) rest += "  •  ★ ${fmt(ride.rating)}"
+            if (prefs.showRides && ride.rides != null) rest += "  •  ${ride.rides}"
             val span = SpannableString(label + rest)
             span.setSpan(ForegroundColorSpan(color), 0, label.length, 0)
             span.setSpan(StyleSpan(Typeface.BOLD), 0, label.length, 0)
@@ -155,7 +165,7 @@ class RideCardView(context: Context) : LinearLayout(context) {
     }
 
     /** Selo do app (Uber preto, 99 laranja) à esquerda e a faixa ("Boa", "Média", "Baixa") à direita. */
-    private fun addHeader(source: String?, band: Int?, prefs: Prefs) {
+    private fun addHeader(source: String?, band: Int?, prefs: Prefs, good: Boolean = false) {
         if (source == null && band == null) return
         val s = prefs.cardScale
         val row = LinearLayout(context).apply {
@@ -170,8 +180,9 @@ class RideCardView(context: Context) : LinearLayout(context) {
             )
         }
         if (band != null && band >= 0) {
-            val label = when (band) { 2 -> "BOA"; 1 -> "MÉDIA"; else -> "BAIXA" }
-            row.addView(pill(label, bandColor(band), Color.WHITE, 12f, prefs), LayoutParams(
+            val label = if (good) "ESSA É BOA!" else when (band) { 2 -> "BOA"; 1 -> "MÉDIA"; else -> "BAIXA" }
+            val labelColor = if (good) 0xFF16A34A.toInt() else bandColor(band)
+            row.addView(pill(label, labelColor, Color.WHITE, 12f, prefs), LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT
             ).apply { if (source != null) marginStart = dp(8f * s) })
         }
@@ -208,7 +219,8 @@ class RideCardView(context: Context) : LinearLayout(context) {
                 dark && source.equals("Uber", ignoreCase = true) -> 0xFFFFFFFF.toInt()
                 else -> brandColor(source)
             }
-            setStroke(dp(3.5f * s), border)
+            // A borda também segue a opacidade escolhida.
+            setStroke(dp(3.5f * s), Color.argb(alpha, Color.red(border), Color.green(border), Color.blue(border)))
         }
         setPadding(dp(14f * s), dp(10f * s), dp(14f * s), dp(10f * s))
     }

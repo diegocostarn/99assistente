@@ -14,7 +14,11 @@ data class RideInfo(
     /** Endereço de embarque (lido do card, quando o app mostra). */
     val pickupAddress: String? = null,
     /** Endereço de destino (lido do card, quando o app mostra). */
-    val dropoffAddress: String? = null
+    val dropoffAddress: String? = null,
+    /** Nota do passageiro (1 a 5), quando o card mostra. */
+    val rating: Double? = null,
+    /** Quantidade de corridas do passageiro, quando o card mostra. */
+    val rides: Int? = null
 ) {
     /** Km total considerado no cálculo. */
     fun totalKm(includePickup: Boolean): Double {
@@ -124,6 +128,50 @@ object RideParser {
         parseOcrRaw(lines)?.takeIf { isPlausible(it) }
 
     fun parse(rawTexts: List<String>): RideInfo? {
+        val core = parseCore(rawTexts) ?: return null
+        val (rating, rides) = extractProfile(rawTexts.map { normalize(it) })
+        return core.copy(rating = rating, rides = rides)
+    }
+
+    // Nota do passageiro: "4,87 • 395 corridas" (99), "★ 4.93 (1.204)" ou "4.93 ★" (Uber).
+    private val ratingParenRegex = Regex("""(?<![\d.,$])(\d[.,]\d{1,2})\s*\(\d[\d.]*\)""")
+    private val ratingStarAfterRegex = Regex("""(?<![\d.,$])(\d[.,]\d{1,2})\s*[★⭐*]""")
+    private val ratingStarBeforeRegex = Regex("""[★⭐*]\s*(\d[.,]\d{1,2})(?!\d)""")
+    private val ratingBeforeRidesRegex = Regex(
+        """(?<![\d.,$])(\d[.,]\d{1,2})\s*[•·|\-]?\s*\d[\d.]*\s*(?:corridas|viagens)""", RegexOption.IGNORE_CASE
+    )
+    private val ratingAloneRegex = Regex("""^(\d[.,]\d{1,2})$""")
+    private val ridesCountRegex = Regex("""(\d{1,3}(?:\.\d{3})+|\d+)\s*(?:corridas|viagens)""", RegexOption.IGNORE_CASE)
+
+    private fun validRating(s: String): Double? =
+        parseBrNumber(s)?.takeIf { it in 1.0..5.0 }
+
+    /** Devolve (nota, corridas) do passageiro, ou null no que não achar. */
+    private fun extractProfile(texts: List<String>): Pair<Double?, Int?> {
+        var rating: Double? = null
+        loop@ for ((i, raw) in texts.withIndex()) {
+            val t = raw.trim()
+            for (r in listOf(ratingParenRegex, ratingStarAfterRegex, ratingStarBeforeRegex, ratingBeforeRidesRegex)) {
+                val v = r.find(t)?.groupValues?.get(1)?.let { validRating(it) }
+                if (v != null) { rating = v; break@loop }
+            }
+            // Nota sozinha na linha (99): só vale se logo depois vêm as corridas ou uma estrela.
+            val alone = ratingAloneRegex.find(t)?.groupValues?.get(1)?.let { validRating(it) }
+            if (alone != null) {
+                val near = texts.drop(i + 1).take(2).joinToString(" ").lowercase()
+                if ("corridas" in near || "viagens" in near || near.trimStart().startsWith("★")) {
+                    rating = alone
+                    break
+                }
+            }
+        }
+        val rides = texts.firstNotNullOfOrNull { t ->
+            ridesCountRegex.find(t)?.groupValues?.get(1)?.replace(".", "")?.toIntOrNull()
+        }
+        return rating to rides
+    }
+
+    private fun parseCore(rawTexts: List<String>): RideInfo? {
         // Formatação de moeda e unidades costuma usar espaço não separável (U+00A0),
         // que o "\s" do regex não reconhece. Troca por espaço comum antes de tudo.
         val texts = rawTexts.map { normalize(it) }

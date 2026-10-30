@@ -24,9 +24,6 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 
 /**
  * Leitura por captura de tela. Serve para telas que o app (ex.: card de solicitação da Uber)
@@ -45,17 +42,12 @@ class ScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var reader: ImageReader? = null
-    private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    private lateinit var pipeline: OcrPipeline
 
-    private var busy = false
     private var lastWideOcrAt = 0L
 
     /** Proporção entre a imagem do OCR e a tela real (a imagem é reduzida para ~720 px de largura). */
     private var captureScale = 1f
-    private var lastOcrDump = ""
-    private val ocrRideHistory = ArrayList<String>()
-    private val ocrRejected = ArrayList<String>()
-    private val kmRegex = Regex("""\d\s*km""", RegexOption.IGNORE_CASE)
     private var stopped = false
 
     private val projectionCallback = object : MediaProjection.Callback() {
@@ -70,7 +62,6 @@ class ScreenCaptureService : Service() {
                 captureAndRead()
             } catch (e: Exception) {
                 Log.w(TAG, "Falha na captura", e)
-                busy = false
             }
             if (!stopped) handler.postDelayed(this, INTERVAL_MS)
         }
@@ -80,6 +71,7 @@ class ScreenCaptureService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         prefs = Prefs(this)
+        if (!::pipeline.isInitialized) pipeline = OcrPipeline(this)
 
         val resultCode = intent?.getIntExtra(EXTRA_CODE, 0) ?: 0
         val data = readProjectionData(intent)
@@ -167,7 +159,7 @@ class ScreenCaptureService : Service() {
         // Sempre esvazia a fila de imagens, mesmo quando não vai usar o quadro.
         val image = r.acquireLatestImage() ?: return
         // Telas com texto (modo "ler também quando há texto") são lidas com menos frequência, para poupar bateria.
-        if (!active || accessibilityHasRide || busy || (!sparse && now - lastWideOcrAt < WIDE_INTERVAL_MS)) {
+        if (!active || accessibilityHasRide || pipeline.busy || (!sparse && now - lastWideOcrAt < WIDE_INTERVAL_MS)) {
             image.close()
             return
         }
@@ -182,80 +174,7 @@ class ScreenCaptureService : Service() {
         full.copyPixelsFromBuffer(plane.buffer)
         image.close()
 
-        // Tapa o card do Assistente 99 (onde quer que o usuário o tenha colocado) para o OCR não lê-lo.
-        svc?.overlayBounds()?.let { b ->
-            val m = 6f
-            val paint = android.graphics.Paint().apply { color = android.graphics.Color.WHITE }
-            android.graphics.Canvas(full).drawRect(
-                b.left * captureScale - m, b.top * captureScale - m,
-                b.right * captureScale + m, b.bottom * captureScale + m, paint
-            )
-        }
-
-        // Ignora o topo, onde fica o card do Assistente 99 (evita ler a si mesmo).
-        // Na 99 a lista de solicitações começa logo abaixo do título, então ignora só a barra de status.
-        val fraction = if (OcrState.lastSparsePkg == "com.app99.driver") IGNORE_TOP_99 else IGNORE_TOP_FRACTION
-        val top = (height * fraction).toInt()
-        val cropped = Bitmap.createBitmap(full, 0, top, width, height - top)
-        full.recycle()
-
-        busy = true
-        recognizer.process(InputImage.fromBitmap(cropped, 0))
-            .addOnSuccessListener { result ->
-                val lines = result.textBlocks.flatMap { b -> b.lines.map { it.text } }
-                handleLines(lines)
-            }
-            .addOnCompleteListener {
-                busy = false
-                cropped.recycle()
-            }
-    }
-
-    private fun handleLines(lines: List<String>) {
-        val now = System.currentTimeMillis()
-        val svc = RideAccessibilityService.instance
-
-        // Guarda o que o OCR leu, para diagnóstico na tela principal.
-        val dump = lines.joinToString(" | ")
-        if (dump.isNotBlank() && dump != lastOcrDump) {
-            lastOcrDump = dump
-            prefs.lastOcrDump = "[${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-                .format(java.util.Date())}] ${lines.size} linhas\n${dump.take(2000)}"
-        }
-
-        // Leituras com "km" (card de corrida) vão para um histórico próprio: a tela inicial lida
-        // um segundo depois não apaga o texto do card.
-        if (kmRegex.containsMatchIn(dump)) {
-            val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-                .format(java.util.Date())
-            ocrRideHistory.add(0, "[$time] ${lines.size} linhas\n${dump.take(1500)}")
-            while (ocrRideHistory.size > 5) ocrRideHistory.removeAt(ocrRideHistory.size - 1)
-            prefs.ocrRideHistory = ocrRideHistory.joinToString("\n\n---\n\n")
-        }
-
-        val all = RideParser.parseOcrAllRaw(lines)
-        val good = all.filter { RideParser.isPlausible(it) }
-        for (bad in all.filter { !RideParser.isPlausible(it) }) {
-            // Leitura que não bate com a estimativa por km do card: não mostra, e guarda para análise.
-            val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-                .format(java.util.Date())
-            val calc = bad.perKm(true)?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "?"
-            ocrRejected.add(
-                0,
-                "[$time] DESCARTADA: calculei R$ $calc/km, o app estima R$ ${bad.estPerKm}/km " +
-                    "(preço ${bad.price}, até o passageiro ${bad.pickupKm} km, viagem ${bad.tripKm} km)\n${dump.take(1200)}"
-            )
-            while (ocrRejected.size > 5) ocrRejected.removeAt(ocrRejected.size - 1)
-            prefs.ocrRejected = ocrRejected.joinToString("\n\n---\n\n")
-        }
-        if (good.isNotEmpty()) {
-            OcrState.lastOcrRideAt = now
-            OcrState.shownByOcr = true
-            svc?.showRidesFromOcr(good)
-        } else if (OcrState.shownByOcr && now - OcrState.lastOcrRideAt > OcrState.GRACE_MS) {
-            OcrState.shownByOcr = false
-            svc?.hideFromOcr()
-        }
+        pipeline.process(full, captureScale)
     }
 
     private fun buildNotification(): Notification {
@@ -292,7 +211,7 @@ class ScreenCaptureService : Service() {
             projection?.stop()
         } catch (_: Exception) {
         }
-        recognizer.close()
+        if (::pipeline.isInitialized) pipeline.close()
         super.onDestroy()
     }
 
@@ -306,8 +225,5 @@ class ScreenCaptureService : Service() {
         private const val WIDE_INTERVAL_MS = 2000L
         private const val MAX_WIDTH = 720f
 
-        /** Fração do topo da tela ignorada (o card do Assistente 99 aparece ali). */
-        private const val IGNORE_TOP_FRACTION = 0.36f
-        private const val IGNORE_TOP_99 = 0.08f
     }
 }

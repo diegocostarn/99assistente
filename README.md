@@ -24,7 +24,13 @@ App Android que lê, em tempo real, a solicitação de corrida na tela do app de
 2. Ajuste as faixas de R$/km e se o km até o passageiro entra na conta. Toque em Salvar.
 3. Abra o app da 99 ou da Uber, fique online e aguarde uma solicitação. O mesmo card funciona nos dois.
 
-## Uber: leitura por captura de tela (OCR)
+## Uber: leitura por imagem (OCR)
+
+**Android 11 ou mais novo:** a leitura por imagem usa o próprio serviço de acessibilidade (`takeScreenshot`). Não pede autorização, não mostra o aviso de "gravando a tela" e **não esconde as notificações do celular**. Liga sozinha com o serviço.
+
+**Android 10 ou mais antigo:** usa a captura de tela do sistema, descrita abaixo.
+
+### Captura de tela do sistema (só Android 10 ou menos)
 
 O card de solicitação da Uber não expõe o texto ao serviço de acessibilidade (o modo diagnóstico mostra "tela sem nenhum texto legível"). Para esse caso o app lê a imagem da tela:
 
@@ -48,8 +54,9 @@ Na tela principal, **Personalizar o card** permite ajustar, com prévia ao vivo:
 
 - **Tema do card**: claro, escuro ou o mesmo do app (no escuro, a borda da Uber fica branca para aparecer);
 - **Tempo na tela** (3 a 12 s): quanto tempo o card continua visível depois que a solicitação some;
-- **Tamanho** (60% a 200%) e **opacidade** (30% a 100%);
+- **Tamanho** (60% a 200%) e **opacidade** (10% a 100%, vale para o fundo e a borda);
 - **O que mostrar**: R$/km, valor da corrida, distância, R$/h e tempo total;
+- **Nota e corridas do passageiro**: a nota (★) e a quantidade de corridas, quando o card do app mostra (99 e Uber);
 - **Posição livre**: toque em "Posicionar livremente", arraste o card para qualquer ponto da tela (dá para abrir a Uber ou a 99 antes, para ver o lugar real) e toque em "Salvar posição".; "Voltar à posição padrão" leva o card de volta ao topo;
 - **Testar sobre outros apps**: mostra o card por 6 s para você ver o resultado de verdade.
 
@@ -62,12 +69,22 @@ As mudanças valem já na próxima solicitação. Na leitura por OCR (Uber), o a
 - A lista também é lida quando o preço vem na mesma linha de "100% dos ganhos" e do "R$/km", ou quando a tela entrega tudo num bloco de texto só. Na leitura por imagem da 99, só a barra de status é ignorada (para ler a 1ª corrida da lista).
 - Se a tela da 99 tem algum texto, mas a corrida não é reconhecida, o app também tenta ler por imagem (OCR). Isso gasta mais bateria e pode ser desligado na tela principal em **Ler por imagem também quando a tela tiver texto**. Para funcionar, a captura de tela precisa estar ligada.
 
+## Essa é boa (aviso e aceite automático)
+
+Na tela principal, **Essa é boa**. Uma corrida é boa quando tem pelo menos o **R$/km** que você definiu (padrão R$ 2,00) e o passageiro está a no máximo a **distância** definida (padrão 1,5 km). Quando isso acontece:
+
+- o card mostra **ESSA É BOA!** e o app toca **dois bipes** (volume de alarme), uma vez por corrida;
+- com o **aceite automático** ligado (desligado por padrão), o app espera o tempo escolhido (1 a 10 s, padrão 2 s) e aperta **Aceitar** sozinho, só em solicitação única. Ele usa o botão que o app expõe ou toca no lugar onde a leitura por imagem viu o botão. O resultado aparece em "Ver o que o app leu".
+
+Atenção: a Uber e a 99 podem proibir o aceite automático nos termos de uso. Você liga por sua conta e risco, e o app pede confirmação.
+
 ## Botão flutuante
 
 Um botão redondo "R$" fica sobre os apps (com o serviço de acessibilidade ativo). Arraste para mudar de lugar: ao soltar, ele gruda na lateral mais próxima (esquerda ou direita). Tocando, abre uma janelinha para o lado de dentro da tela (para a esquerda se o botão está na direita, e vice-versa), com:
 
 - **Últimas viagens**: abre o histórico;
 - **Abrir o aplicativo**: abre a tela principal do Assistente 99;
+- **Fechar o app**: fecha as telas, esconde o botão flutuante e o card e para a leitura. O serviço de acessibilidade continua ativado no Android (só você pode desligá-lo). Ao abrir o app de novo, o botão volta sozinho e a leitura retoma;
 - chaves para **ligar ou desligar a leitura da Uber e da 99** separadamente (desligada, o app ignora aquele app).
 
 Toque fora da janelinha para fechá-la. Para esconder o botão, desligue **Botão flutuante** na tela principal e toque em Salvar. A posição fica guardada.

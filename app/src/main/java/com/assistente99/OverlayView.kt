@@ -31,8 +31,8 @@ class OverlayView(private val service: AccessibilityService) {
     private var cardParams: WindowManager.LayoutParams? = null
     private var controls: View? = null
 
-    fun show(ride: RideInfo, prefs: Prefs, source: String? = null) {
-        ensureCreated().bind(ride, prefs, source)
+    fun show(ride: RideInfo, prefs: Prefs, source: String? = null, good: Boolean = false) {
+        ensureCreated().bind(ride, prefs, source, good)
     }
 
     /** Várias corridas na mesma tela (lista de solicitações): uma linha por corrida. */

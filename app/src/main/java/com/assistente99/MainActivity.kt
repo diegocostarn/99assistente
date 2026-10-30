@@ -164,7 +164,7 @@ class MainActivity : AppCompatActivity() {
         c1.addView(accButton)
         col.addView(c1)
 
-        val (d2, t2, c2) = statusRow("Captura de tela (Uber)")
+        val (d2, t2, c2) = statusRow("Leitura por imagem (Uber)")
         ocrDot = d2; ocrText = t2
         ocrButton = filledButton("Ligar captura de tela") { startOcr() }
         c2.addView(ocrButton)
@@ -174,6 +174,9 @@ class MainActivity : AppCompatActivity() {
         col.addView(sectionTitle("ATALHOS"))
         col.addView(tile("🕘", "Últimas 10 viagens", "Uber e 99, com endereços e mapa") {
             startActivity(Intent(this, RideLogActivity::class.java))
+        })
+        col.addView(tile("✅", "Essa é boa", "Aviso sonoro e aceite automático") {
+            startActivity(Intent(this, GoodSettingsActivity::class.java))
         })
         col.addView(tile("🎨", "Personalizar o card", "Tamanho, fonte, posição e campos") {
             startActivity(Intent(this, CardSettingsActivity::class.java))
@@ -231,10 +234,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Abrir o app depois de "Fechar o app" retoma a leitura e o botão flutuante.
+        if (AppState.paused && System.currentTimeMillis() - AppState.pausedAt > 1500) {
+            RideAccessibilityService.instance?.resume() ?: run { AppState.paused = false }
+        }
         refreshStatus()
         // Captura "sempre ligada": ao abrir o app, pede a autorização se ela estiver desligada.
         // (O Android exige a confirmação do usuário a cada vez; não dá para ligá-la escondido.)
-        if (prefs.autoCapture && !OcrState.running && !autoAsked && isServiceEnabled()) {
+        if (android.os.Build.VERSION.SDK_INT < 30 && prefs.autoCapture && !OcrState.running && !autoAsked && isServiceEnabled()) {
             autoAsked = true
             startOcr()
         }
@@ -245,6 +252,15 @@ class MainActivity : AppCompatActivity() {
         accDot.background = round(if (acc) GOOD else BAD, 6)
         accText.text = if (acc) "Ativo. Abra a 99 ou a Uber e fique online." else "Desligado. Toque abaixo e ligue \"Assistente 99\"."
         accButton.visibility = if (acc) View.GONE else View.VISIBLE
+
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            // Android 11+: a leitura por imagem faz parte do serviço de acessibilidade.
+            ocrDot.background = round(if (acc) GOOD else BAD, 6)
+            ocrText.text = if (acc) "Automática, junto com o serviço acima. Não pede autorização." else "Liga sozinha quando o serviço de acessibilidade estiver ativo."
+            ocrButton.visibility = View.GONE
+            autoSwitch.visibility = View.GONE
+            return
+        }
 
         val ocr = OcrState.running
         ocrDot.background = round(if (ocr) GOOD else BAD, 6)
@@ -311,7 +327,9 @@ class MainActivity : AppCompatActivity() {
             "Nenhuma leitura de OCR com km ainda (o card da corrida precisa estar na tela com a captura ligada)."
         }
         val rejected = prefs.ocrRejected.ifBlank { "Nenhuma." }
-        val message = "OCR - LEITURAS DESCARTADAS (não bateram com a estimativa da Uber):\n$rejected\n\n" +
+        val accept = prefs.lastAcceptLog.ifBlank { "Nenhum ainda." }
+        val message = "ACEITE AUTOMÁTICO (último):\n$accept\n\n" +
+            "OCR - LEITURAS DESCARTADAS (não bateram com a estimativa da Uber):\n$rejected\n\n" +
             "OCR - LEITURAS COM KM (mais recente primeiro):\n$ocrRides\n\n" +
             "OCR - ÚLTIMA LEITURA (qualquer tela):\n$ocr\n\n" +
             "ÚLTIMA TELA COM PREÇO E KM (radar/corrida):\n$rideDump\n\n" +
