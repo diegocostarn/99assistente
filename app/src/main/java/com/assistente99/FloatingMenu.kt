@@ -60,6 +60,8 @@ class FloatingMenu(
                 setColor(0xE60F172A.toInt())
                 setStroke(dp(2), 0xFF22C55E.toInt())
             }
+            // 20% mais transparente que antes.
+            alpha = 0.8f
             layoutParams = LinearLayout.LayoutParams(dp(50), dp(50))
         }
         val p = buildPanel()

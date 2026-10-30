@@ -6,6 +6,14 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -40,7 +48,7 @@ object RideNotifier {
             val key = "${e.source}|${String.format(Locale.US, "%.2f", e.price)}"
             val fingerprint = listOf(
                 e.perKm?.let { String.format(Locale.US, "%.2f", it) }, e.pickupKm, e.tripKm,
-                e.pickupMin, e.tripMin, e.pickupAddress, e.dropoffAddress
+                e.pickupMin, e.tripMin, e.pickupAddress, e.dropoffAddress, e.rating, e.rides
             ).joinToString("|")
             val same = key == lastKey
             if (!isNew && !same) return
@@ -68,9 +76,26 @@ object RideNotifier {
         val nm = NotificationManagerCompat.from(context)
         if (!nm.areNotificationsEnabled()) return
         ensureChannel(context)
+        val prefs = Prefs(context)
 
-        val perKm = e.perKm?.let { "R$ ${fmt(it)}/km" } ?: "R$ --/km"
-        val title = "${e.source.uppercase(br)} • $perKm • R$ ${fmt(e.price)}"
+        // Cor da faixa do R$/km (a mesma lógica do card).
+        val accent = when {
+            e.perKm == null -> 0xFF6B7280.toInt()
+            e.perKm >= prefs.goodPerKm -> 0xFF15803D.toInt()
+            e.perKm >= prefs.minPerKm -> 0xFFB45309.toInt()
+            else -> 0xFFB91C1C.toInt()
+        }
+
+        val perKmText = e.perKm?.let { "R$ ${fmt(it)}/km" } ?: "R$ --/km"
+        val priceText = "R$ ${fmt(e.price)}"
+        val title = SpannableStringBuilder().apply {
+            val start = length
+            append(perKmText)
+            setSpan(StyleSpan(Typeface.BOLD), start, length, 0)
+            setSpan(ForegroundColorSpan(accent), start, length, 0)
+            append("   •   ")
+            append(priceText)
+        }
 
         val a = e.pickupMin
         val b = e.tripMin
@@ -86,20 +111,32 @@ object RideNotifier {
             kb != null -> "${fmt(kb)} km"
             else -> null
         }
+        val passageiro = listOfNotNull(
+            e.rating?.let { "★ ${fmt(it)}" },
+            e.rides?.let { "$it corridas" }
+        ).joinToString("  •  ").ifEmpty { null }
 
-        // Linha curta (notificação fechada).
+        // Linha curta (notificação fechada): passageiro, tempo e km.
         val short = listOfNotNull(
+            passageiro,
             if (a != null && b != null) "${a + b} min" else b?.let { "$it min" },
             if (ka != null && kb != null) "${fmt(ka + kb)} km" else kb?.let { "${fmt(it)} km" }
-        ).joinToString(" • ").ifEmpty { "Toque para ver as últimas viagens" }
+        ).joinToString("  •  ").ifEmpty { "Toque para ver as últimas viagens" }
 
-        // Texto completo (notificação aberta).
-        val big = buildString {
-            tempo?.let { append("Tempo: $it\n") }
-            distancia?.let { append("Distância: $it\n") }
-            append("Embarque: ${e.pickupAddress ?: "endereço não lido"}\n")
-            append("Destino: ${e.dropoffAddress ?: "endereço não lido"}")
+        // Texto completo (notificação aberta): rótulos em negrito, uma informação por linha.
+        val big = SpannableStringBuilder()
+        fun line(label: String, value: String, last: Boolean = false) {
+            val start = big.length
+            big.append(label)
+            big.setSpan(StyleSpan(Typeface.BOLD), start, big.length, 0)
+            big.append(" ").append(value)
+            if (!last) big.append("\n")
         }
+        passageiro?.let { line("Passageiro:", it) }
+        tempo?.let { line("Tempo:", it) }
+        distancia?.let { line("Distância:", it) }
+        line("🔵 Embarque:", e.pickupAddress ?: "endereço não lido")
+        line("🟠 Destino:", e.dropoffAddress ?: "endereço não lido", last = true)
 
         val openLog = PendingIntent.getActivity(
             context, 0,
@@ -109,10 +146,17 @@ object RideNotifier {
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_directions)
+            .setColor(accent)
+            .setLargeIcon(brandIcon(e.source))
             .setContentTitle(title)
             .setContentText(short)
             .setSubText(SimpleDateFormat("dd/MM HH:mm", br).format(Date(e.time)))
-            .setStyle(NotificationCompat.BigTextStyle().bigText(big))
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .setBigContentTitle(title)
+                    .bigText(big)
+                    .setSummaryText("Última corrida • ${e.source.uppercase(br)}")
+            )
             .setContentIntent(openLog)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
@@ -121,10 +165,28 @@ object RideNotifier {
             .setSilent(true)
             .setAutoCancel(false)
 
-        e.pickupAddress?.let { builder.addAction(0, "Embarque no mapa", mapIntent(context, 1, it)) }
-        e.dropoffAddress?.let { builder.addAction(0, "Destino no mapa", mapIntent(context, 2, it)) }
+        e.pickupAddress?.let { builder.addAction(0, "🔵 Embarque no mapa", mapIntent(context, 1, it)) }
+        e.dropoffAddress?.let { builder.addAction(0, "🟠 Destino no mapa", mapIntent(context, 2, it)) }
 
         nm.notify(NOTIFICATION_ID, builder.build())
+    }
+
+    /** Círculo com a cor do app (Uber preto, 99 laranja) e o nome dentro, para a imagem grande da notificação. */
+    private fun brandIcon(source: String): Bitmap {
+        val size = 128
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.color = RideCardView.brandColor(source)
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        paint.color = Color.WHITE
+        paint.typeface = Typeface.DEFAULT_BOLD
+        paint.textAlign = Paint.Align.CENTER
+        val label = source.uppercase(br)
+        paint.textSize = if (label.length <= 2) 60f else 32f
+        val y = size / 2f - (paint.descent() + paint.ascent()) / 2f
+        canvas.drawText(label, size / 2f, y, paint)
+        return bmp
     }
 
     /** Abre o endereço no app de mapas do celular (Google Maps, Waze etc., conforme o aparelho). */

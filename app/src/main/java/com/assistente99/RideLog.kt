@@ -24,7 +24,9 @@ class RideLog(context: Context) {
         val tripMin: Int?,
         val perKm: Double?,
         val pickupAddress: String?,
-        val dropoffAddress: String?
+        val dropoffAddress: String?,
+        val rating: Double? = null,
+        val rides: Int? = null
     )
 
     private val appContext = context.applicationContext
@@ -64,7 +66,9 @@ class RideLog(context: Context) {
                     tripMin = if (confirmed) ride.tripMin else (old.tripMin ?: ride.tripMin),
                     perKm = perKmOf(old.price, pickupKm, tripKm, includePickup),
                     pickupAddress = longer(old.pickupAddress, ride.pickupAddress),
-                    dropoffAddress = longer(old.dropoffAddress, ride.dropoffAddress)
+                    dropoffAddress = longer(old.dropoffAddress, ride.dropoffAddress),
+                    rating = ride.rating ?: old.rating,
+                    rides = ride.rides ?: old.rides
                 )
                 shown = list[i]
             } else {
@@ -80,7 +84,9 @@ class RideLog(context: Context) {
                         tripMin = ride.tripMin,
                         perKm = ride.perKm(includePickup),
                         pickupAddress = ride.pickupAddress,
-                        dropoffAddress = ride.dropoffAddress
+                        dropoffAddress = ride.dropoffAddress,
+                        rating = ride.rating,
+                        rides = ride.rides
                     )
                 )
                 shown = list[0]
@@ -114,6 +120,8 @@ class RideLog(context: Context) {
             e.perKm?.let { o.put("perKm", it) }
             e.pickupAddress?.let { o.put("pickupAddress", it) }
             e.dropoffAddress?.let { o.put("dropoffAddress", it) }
+            e.rating?.let { o.put("rating", it) }
+            e.rides?.let { o.put("rides", it) }
             arr.put(o)
         }
         sp.edit().putString(KEY, arr.toString()).apply()
@@ -135,7 +143,9 @@ class RideLog(context: Context) {
                     tripMin = o.int("tripMin"),
                     perKm = o.dbl("perKm"),
                     pickupAddress = o.str("pickupAddress"),
-                    dropoffAddress = o.str("dropoffAddress")
+                    dropoffAddress = o.str("dropoffAddress"),
+                    rating = o.dbl("rating"),
+                    rides = o.int("rides")
                 )
             }
         } catch (e: Exception) {

@@ -88,6 +88,8 @@ Toque fora da janelinha para fechá-la. Para esconder o botão, desligue **Botã
 
 Cada solicitação nova lida pelo app atualiza uma notificação **silenciosa** na barra de notificações (sem som, sem vibração e sem aparecer por cima da tela). Fechada, mostra o app (Uber ou 99), o R$/km, o valor, o tempo e a distância. Aberta (puxe para baixo ou toque na seta), mostra também os endereços, e tem os botões **Embarque no mapa** e **Destino no mapa**. Tocar na notificação abre as últimas viagens. Dá para tirá-la deslizando, e ela volta na próxima corrida.
 
+A notificação mostra o R$/km colorido (verde, amarelo ou vermelho), o ícone do app (Uber/99), a nota ★ e a quantidade de corridas do passageiro, tempo, distância e os endereços de embarque e destino.
+
 Para desligar, use **Mostrar a última corrida na barra de notificações** na tela principal. No Android 13 ou mais novo o app pede a permissão de notificações.
 
 ## Histórico das últimas 10 viagens

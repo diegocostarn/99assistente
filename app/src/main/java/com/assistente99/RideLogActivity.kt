@@ -92,6 +92,14 @@ class RideLogActivity : AppCompatActivity() {
             this, if (perKm != null) "R$ ${fmt(perKm)}/km" else "R$ --/km", 28f, accent, true
         ).apply { setPadding(0, dp(6), 0, 0) })
         card.addView(Ui.text(this, "R$ ${fmt(e.price)}", 16f, ink, true))
+        val passenger = listOfNotNull(
+            e.rating?.let { "★ ${fmt(it)}" },
+            e.rides?.let { "$it corridas" }
+        )
+        if (passenger.isNotEmpty()) {
+            card.addView(Ui.text(this, "Passageiro: " + passenger.joinToString("  •  "), 14f, ink, true)
+                .apply { setPadding(0, dp(4), 0, 0) })
+        }
 
         // Tempo e distância
         val a = e.pickupMin
@@ -112,8 +120,8 @@ class RideLogActivity : AppCompatActivity() {
         card.addView(info("Distância", dist))
 
         // Endereços e botões de mapa
-        addAddress(card, "Embarque", e.pickupAddress, "Abrir embarque no mapa")
-        addAddress(card, "Destino", e.dropoffAddress, "Abrir destino no mapa")
+        addAddress(card, "Embarque", e.pickupAddress, "🔵  Abrir embarque no mapa", PICKUP_COLOR)
+        addAddress(card, "Destino", e.dropoffAddress, "🟠  Abrir destino no mapa", DROPOFF_COLOR)
         return card
     }
 
@@ -121,11 +129,11 @@ class RideLogActivity : AppCompatActivity() {
         this, "$label: $value", 14f, Pal.muted(this)
     ).apply { setPadding(0, dp(4), 0, 0) }
 
-    private fun addAddress(card: LinearLayout, label: String, address: String?, buttonText: String) {
+    private fun addAddress(card: LinearLayout, label: String, address: String?, buttonText: String, color: Int) {
         card.addView(Ui.text(
             this, if (address != null) "$label: $address" else "$label: endereço não lido", 14f, Pal.ink(this)
         ).apply { setPadding(0, dp(10), 0, 0) })
-        if (address != null) card.addView(Ui.outlineButton(this, buttonText) { openMap(address) })
+        if (address != null) card.addView(Ui.button(this, buttonText, color) { openMap(address) })
     }
 
     /** Abre o endereço no app de mapas do celular (Google Maps, Waze etc., conforme o aparelho). */
@@ -136,6 +144,12 @@ class RideLogActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "Nenhum app de mapas encontrado.", Toast.LENGTH_LONG).show()
         }
+    }
+
+    companion object {
+        /** Azul para o embarque, laranja para o destino: dá para distinguir os dois botões de relance. */
+        private const val PICKUP_COLOR = 0xFF2563EB.toInt()
+        private const val DROPOFF_COLOR = 0xFFEA580C.toInt()
     }
 
     private fun fmt(v: Double): String = String.format(br, "%.2f", v)
